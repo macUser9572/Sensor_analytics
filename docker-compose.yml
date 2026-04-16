@@ -1,0 +1,104 @@
+version: "3.9"
+
+services:
+  # ─── FastAPI Application ─────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sensor_api
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app/app  # hot-reload during development
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - sensor_net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; r = httpx.get('http://localhost:8000/health'); assert r.status_code == 200"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ─── TimescaleDB (PostgreSQL + time-series) ─────────────────
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: sensor_timescaledb
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - sensor_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ─── Redis 7 (caching + pub/sub) ────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: sensor_redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - sensor_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # ─── MinIO (S3-compatible object storage) ────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: sensor_minio
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - sensor_net
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  timescaledb_data:
+    name: sensor_timescaledb_data
+  redis_data:
+    name: sensor_redis_data
+  minio_data:
+    name: sensor_minio_data
+
+networks:
+  sensor_net:
+    name: sensor_network
+    driver: bridge
