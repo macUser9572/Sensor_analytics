@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Plot from 'react-plotly.js';
 import axios from 'axios';
 
-export default function SensorDetailModal({ sensor, onClose }) {
+export default function SensorDetailModal({ sensor, source, onClose }) {
   const [history, setHistory] = useState(null);
   const [stats, setStats] = useState({ min: 0, max: 0, mean: 0 });
+  const [viewMode, setViewMode] = useState(source === 'realdata' ? 'raw' : 'plot');
+  const lastValueRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -32,11 +34,31 @@ export default function SensorDetailModal({ sensor, onClose }) {
     return () => { active = false; };
   }, [sensor.id]);
 
+  useEffect(() => {
+    // Append live values to the history so the plot 'moves'
+    if (history && sensor.value !== lastValueRef.current) {
+        lastValueRef.current = sensor.value;
+        setHistory(prev => {
+            if (!prev) return prev;
+            
+            const newX = [...prev.x, sensor.timestamp || new Date().toISOString()];
+            const newY = [...prev.y, sensor.value];
+            
+            // Keep maximum of 3600 points (roughly 1 hour at 1s intervals)
+            if (newX.length > 3600) {
+               newX.shift();
+               newY.shift();
+            }
+            return { x: newX, y: newY };
+        });
+    }
+  }, [sensor.value]);
+
   return (
     <div className="fixed inset-0 bg-dashboard-bg/90 backdrop-blur-sm z-50 flex items-center justify-center p-6 animate-[fadeIn_0.2s_ease-out]">
-       <div className="bg-dashboard-card border border-dashboard-border shadow-2xl rounded-xl w-full max-w-5xl flex flex-col overflow-hidden">
+       <div className="bg-dashboard-card border border-dashboard-border shadow-2xl rounded-xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden">
           
-          <div className="flex justify-between items-center p-5 border-b border-dashboard-border bg-dashboard-border/30">
+          <div className="flex justify-between items-center p-5 border-b border-dashboard-border bg-dashboard-border/30 shrink-0">
              <div>
                 <h2 className="text-2xl font-bold flex items-center space-x-3 text-dashboard-textMain">
                    <span>{sensor.name}</span>
@@ -47,9 +69,9 @@ export default function SensorDetailModal({ sensor, onClose }) {
              <button onClick={onClose} className="text-dashboard-textMuted hover:text-white p-2 text-xl font-bold transition-colors">✕</button>
           </div>
 
-          <div className="p-6 flex-1 flex flex-col min-h-[500px]">
+          <div className="p-6 flex-1 flex flex-col min-h-0">
              
-             <div className="flex justify-between items-center mb-6 bg-dashboard-bg border border-dashboard-border rounded p-4">
+             <div className="flex justify-between items-center mb-6 bg-dashboard-bg border border-dashboard-border rounded p-4 shrink-0">
                 <div>
                    <div className="text-dashboard-textMuted text-xs uppercase font-bold tracking-widest mb-1">Live Value</div>
                    <div className="text-4xl font-mono font-bold text-dashboard-textMain">
@@ -66,31 +88,55 @@ export default function SensorDetailModal({ sensor, onClose }) {
                 )}
              </div>
 
-             <div className="flex-1 min-h-[300px] border border-dashboard-border rounded bg-dashboard-bg overflow-hidden relative">
-                {history ? (
-                  <Plot 
-                    data={[{
-                       x: history.x,
-                       y: history.y,
-                       type: 'scatter',
-                       mode: 'lines',
-                       fill: 'tozeroy',
-                       fillcolor: sensor.status === 'critical' ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
-                       line: { color: sensor.status === 'critical' ? '#ef4444' : '#22c55e', width: 2 }
-                    }]}
-                    layout={{
-                       autosize: true,
-                       margin: { t: 30, l: 50, r: 30, b: 50 },
-                       paper_bgcolor: 'transparent',
-                       plot_bgcolor: 'transparent',
-                       font: { color: '#94a3b8', family: 'monospace' },
-                       xaxis: { showgrid: true, gridcolor: '#334155', title: 'Time' },
-                       yaxis: { showgrid: true, gridcolor: '#334155', title: sensor.unit }
-                    }}
-                    useResizeHandler={true}
-                    style={{ width: '100%', height: '100%' }}
-                    config={{ displayModeBar: false, responsive: true }}
-                  />
+             <div className="flex justify-between items-center mb-2 shrink-0">
+                <div className="flex space-x-2">
+                   <button 
+                     onClick={() => setViewMode('plot')}
+                     className={`px-4 py-1.5 rounded text-sm font-bold transition-colors ${viewMode === 'plot' ? 'bg-dashboard-border text-white' : 'hover:bg-dashboard-border/50 text-dashboard-textMuted'}`}
+                   >
+                     Live Plot
+                   </button>
+                   <button 
+                     onClick={() => setViewMode('raw')}
+                     className={`px-4 py-1.5 rounded text-sm font-bold transition-colors ${viewMode === 'raw' ? 'bg-dashboard-border text-white' : 'hover:bg-dashboard-border/50 text-dashboard-textMuted'}`}
+                   >
+                     Raw Data
+                   </button>
+                </div>
+             </div>
+
+             <div className="flex-1 min-h-0 border border-dashboard-border rounded bg-dashboard-bg overflow-hidden relative">
+                {viewMode === 'raw' ? (
+                   <div className="absolute inset-0 overflow-auto p-4 font-mono text-sm text-green-400 bg-[#0f172a]">
+                      <pre>{JSON.stringify({ livePayload: sensor, recentHistory: history ? history.y.slice(-10).map((val, i) => ({ time: history.x[history.x.length - 10 + i], value: val })) : [] }, null, 2)}</pre>
+                   </div>
+                ) : history ? (
+                  <div className="absolute inset-0">
+                    <Plot 
+                      data={[{
+                         x: history.x,
+                         y: history.y,
+                         type: 'scatter',
+                         mode: 'lines',
+                         fill: 'tozeroy',
+                         fillcolor: sensor.status === 'critical' ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
+                         line: { color: sensor.status === 'critical' ? '#ef4444' : '#22c55e', width: 2 }
+                      }]}
+                      layout={{
+                         autosize: true,
+                         datarevision: history.x.length,
+                         margin: { t: 30, l: 50, r: 30, b: 50 },
+                         paper_bgcolor: 'transparent',
+                         plot_bgcolor: 'transparent',
+                         font: { color: '#94a3b8', family: 'monospace' },
+                         xaxis: { showgrid: true, gridcolor: '#334155', title: 'Time' },
+                         yaxis: { showgrid: true, gridcolor: '#334155', title: sensor.unit }
+                      }}
+                      useResizeHandler={true}
+                      style={{ width: '100%', height: '100%' }}
+                      config={{ displayModeBar: false, responsive: true }}
+                    />
+                  </div>
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center text-dashboard-textMuted animate-pulse space-y-4">
                       <div className="w-8 h-8 border-4 border-dashboard-border border-t-dashboard-textMuted rounded-full animate-spin"></div>

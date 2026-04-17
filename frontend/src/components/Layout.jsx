@@ -14,7 +14,7 @@ export default function Layout({
   onAcknowledge
 }) {
 
-  const subsystems = ['Overview', 'turbine', 'boiler', 'generator', 'cooling', 'transformer', 'auxiliary'];
+
 
   const [time, setTime] = React.useState(new Date().toLocaleTimeString());
 
@@ -82,19 +82,29 @@ export default function Layout({
 
       {/* Left Sidebar Layout */}
       <aside className="fixed top-[64px] left-0 w-[220px] h-[calc(100vh-64px)] bg-dashboard-card/50 border-r border-dashboard-border flex flex-col p-4">
-         <nav className="flex-1 space-y-2">
-            {subsystems.map(sub => (
+         <nav className="flex-1 space-y-1 overflow-y-auto pr-1">
+            <div className="text-[10px] font-bold text-dashboard-textMuted uppercase pt-1 pb-1 tracking-wider">Dashboard Views</div>
+            {['Overview', 'real data'].map(view => (
+              <button 
+                key={view}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded transition-colors ${selectedSubsystem === view ? 'bg-dashboard-border text-white' : 'hover:bg-dashboard-border/50 text-dashboard-textMuted'}`}
+                onClick={() => onSubsystemSelect(view)}
+              >
+                <span className="capitalize font-medium text-sm">{view === 'real data' ? 'Real Data View' : view}</span>
+              </button>
+            ))}
+
+            <div className="text-[10px] font-bold text-dashboard-textMuted uppercase mt-5 pb-1 tracking-wider">Subsystems</div>
+            {['turbine', 'boiler', 'generator', 'cooling', 'transformer', 'auxiliary'].map(sub => (
               <div key={sub}>
                 <button 
                   className={`w-full flex items-center justify-between px-3 py-2 rounded transition-colors ${selectedSubsystem === sub ? 'bg-dashboard-border text-white' : 'hover:bg-dashboard-border/50 text-dashboard-textMuted'}`}
                   onClick={() => onSubsystemSelect(sub)}
                 >
-                  <span className="capitalize font-medium">{sub}</span>
-                  {sub !== 'Overview' && (
-                    <span className={`w-2 h-2 rounded-full ${getSubsystemIndicator(sub)}`}></span>
-                  )}
+                  <span className="capitalize font-medium text-sm">{sub}</span>
+                  <span className={`w-2 h-2 rounded-full ${getSubsystemIndicator(sub)}`}></span>
                 </button>
-                {selectedSubsystem === sub && sub !== 'Overview' && (
+                {selectedSubsystem === sub && (
                    <SubsystemStatusCards subsystem={sub} stats={subsystemStatus[sub]} />
                 )}
               </div>

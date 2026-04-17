@@ -4,6 +4,7 @@ import { useAlertStream } from '../hooks/useAlertStream';
 import Layout from './components/Layout';
 import SensorHeatmap from './components/SensorHeatmap';
 import SubsystemLineChart from './components/SubsystemLineChart';
+import RealDataView from './components/RealDataView';
 import CriticalGauges from './components/CriticalGauges';
 import SensorDetailModal from './components/SensorDetailModal';
 
@@ -17,9 +18,8 @@ export default function App() {
     setSelectedSubsystem(sub);
   };
 
-  const handleSensorClick = (sensorId) => {
-    const sensor = sensorReadings[sensorId];
-    if (sensor) setSelectedSensor(sensor);
+  const handleSensorClick = (sensorId, source = 'default') => {
+    setSelectedSensor({ id: sensorId, source });
   };
 
   return (
@@ -33,7 +33,7 @@ export default function App() {
       onAcknowledge={acknowledgeAlert}
     >
       <div className="flex flex-col" style={{ height: '100%', minHeight: 0 }}>
-        {selectedSubsystem !== 'Overview' && (
+        {selectedSubsystem !== 'Overview' && selectedSubsystem !== 'real data' && (
           <div className="shrink-0 bg-dashboard-card border border-dashboard-border rounded-lg p-4 mb-4">
              <CriticalGauges 
                subsystem={selectedSubsystem} 
@@ -46,8 +46,13 @@ export default function App() {
           {selectedSubsystem === 'Overview' ? (
             <SensorHeatmap 
                readings={sensorReadings} 
-               onSensorClick={handleSensorClick} 
+               onSensorClick={(id) => handleSensorClick(id, 'heatmap')} 
             />
+          ) : selectedSubsystem === 'real data' ? (
+             <RealDataView 
+               readings={sensorReadings} 
+               onSensorClick={(id) => handleSensorClick(id, 'realdata')} 
+             />
           ) : (
             <SubsystemLineChart 
                subsystem={selectedSubsystem} 
@@ -57,9 +62,10 @@ export default function App() {
         </div>
       </div>
 
-      {selectedSensor && (
+      {selectedSensor && sensorReadings[selectedSensor.id] && (
         <SensorDetailModal 
-          sensor={selectedSensor} 
+          sensor={sensorReadings[selectedSensor.id]} 
+          source={selectedSensor.source}
           onClose={() => setSelectedSensor(null)} 
         />
       )}
