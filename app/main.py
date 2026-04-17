@@ -19,7 +19,8 @@ from sqlalchemy import text
 from app.config import settings
 from app.database import engine
 from app.routers import sensors, alerts
-
+from app.simulator.router import router as simulator_router
+from app.simulator.simulator_service import SimulatorService
 
 # ── Shared resources initialised at startup ─────────────────
 redis_client: aioredis.Redis | None = None
@@ -55,9 +56,14 @@ async def lifespan(app: FastAPI):
     if not minio_client.bucket_exists(settings.minio_bucket):
         minio_client.make_bucket(settings.minio_bucket)
 
+    simulator = SimulatorService()
+    app.state.simulator = simulator
+    await simulator.start()
+
     yield  # ← application runs here
 
     # ── Shutdown ────────────────────────────────
+    await simulator.stop()
     if redis_client:
         await redis_client.close()
     await engine.dispose()
@@ -86,6 +92,7 @@ app.add_middleware(
 # ── Router registration ────────────────────────────────────
 app.include_router(sensors.router, prefix="/api/v1")
 app.include_router(alerts.router, prefix="/api/v1")
+app.include_router(simulator_router)
 
 
 # ── Health check ────────────────────────────────────────────

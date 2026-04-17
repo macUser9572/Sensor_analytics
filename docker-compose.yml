@@ -12,7 +12,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./app:/app/app  # hot-reload during development
+      - ./app:/app/app # hot-reload during development
     depends_on:
       timescaledb:
         condition: service_healthy
@@ -23,7 +23,7 @@ services:
     networks:
       - sensor_net
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; r = httpx.get('http://localhost:8000/health'); assert r.status_code == 200"]
+      test: [ "CMD", "python", "-c", "import httpx; r = httpx.get('http://localhost:8000/health'); assert r.status_code == 200" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -31,10 +31,10 @@ services:
 
   # ─── TimescaleDB (PostgreSQL + time-series) ─────────────────
   timescaledb:
-    image: timescale/timescaledb:latest-pg15
+    image: timescale/timescaledb:latest-pg17 # ← Fix 1: upgrade pg15 → pg17
     container_name: sensor_timescaledb
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "5435:5432" # ← Fix 2: host:container — avoids the conflict
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -45,7 +45,7 @@ services:
     networks:
       - sensor_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -62,7 +62,7 @@ services:
     networks:
       - sensor_net
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -84,7 +84,7 @@ services:
     networks:
       - sensor_net
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: [ "CMD", "mc", "ready", "local" ]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -10,7 +10,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Reads configuration from environment variables / .env file."""
+    """
+    Reads configuration from environment variables / .env file.
+
+    All values are sourced from the .env file – no credentials are
+    hardcoded here.  Fields without a default are **required** and
+    will raise a validation error at startup if missing from .env.
+    """
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -19,34 +25,31 @@ class Settings(BaseSettings):
     )
 
     # ── App ─────────────────────────────────────
-    app_name: str = "SensorAnalytics"
+    app_name: str
     app_env: str = "development"
     app_debug: bool = True
     app_host: str = "0.0.0.0"
     app_port: int = 8000
 
     # ── TimescaleDB / PostgreSQL ────────────────
-    postgres_user: str = "sensor_admin"
-    postgres_password: str = "sensor_pass_2026"
-    postgres_db: str = "sensor_analytics"
-    postgres_host: str = "timescaledb"
+    postgres_user: str
+    postgres_password: str
+    postgres_db: str
+    postgres_host: str
     postgres_port: int = 5432
-    database_url: str = (
-        "postgresql+asyncpg://sensor_admin:sensor_pass_2026"
-        "@timescaledb:5432/sensor_analytics"
-    )
+    database_url: str
 
     # ── Redis ───────────────────────────────────
-    redis_host: str = "redis"
+    redis_host: str
     redis_port: int = 6379
-    redis_url: str = "redis://redis:6379/0"
+    redis_url: str
 
     # ── MinIO ───────────────────────────────────
-    minio_endpoint: str = "minio:9000"
-    minio_access_key: str = "minio_admin"
-    minio_secret_key: str = "minio_pass_2026"
+    minio_endpoint: str
+    minio_access_key: str
+    minio_secret_key: str
     minio_secure: bool = False
-    minio_bucket: str = "sensor-data"
+    minio_bucket: str
 
 
 # Singleton instance – import this wherever settings are needed
