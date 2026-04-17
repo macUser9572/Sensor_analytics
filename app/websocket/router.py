@@ -20,15 +20,56 @@ async def websocket_live(websocket: WebSocket):
         logger.error(f"WebSocket error: {e}")
         manager.disconnect(websocket)
 
+import json
+import asyncio
+import redis.asyncio as aioredis
+from app.config import settings
+
 @router.websocket("/alerts")
 async def websocket_alerts(websocket: WebSocket):
-    # Skeleton endpoint for Phase 6 Alert stream
     await websocket.accept()
+    
+    simulator = websocket.app.state.simulator
+    if simulator and hasattr(simulator, "alert_engine"):
+        for alert in simulator.alert_engine.active_alerts.values():
+            await websocket.send_text(json.dumps({
+                "event": "alert_fired",
+                "alert": alert
+            }))
+            
+    redis_client = aioredis.from_url(settings.redis_url, decode_responses=True)
+    pubsub = redis_client.pubsub()
+    await pubsub.subscribe("alerts")
+    
+    async def redis_listener():
+        try:
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    await websocket.send_text(message["data"])
+        except Exception as e:
+            logger.error(f"Alerts redis listener error: {e}")
+            
+    async def ws_listener():
+        try:
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            pass
+            
     try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        pass
+        listen_task = asyncio.create_task(redis_listener())
+        ws_task = asyncio.create_task(ws_listener())
+        
+        done, pending = await asyncio.wait(
+            [listen_task, ws_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+        
+        for task in pending:
+            task.cancel()
+    finally:
+        await pubsub.close()
+        await redis_client.close()
 
 @router.get("/status")
 async def websocket_status(request: Request):

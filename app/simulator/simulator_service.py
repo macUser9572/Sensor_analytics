@@ -10,11 +10,13 @@ from app.simulator.sensor_registry import generate_sensors, SensorDefinition
 from app.simulator.sensor_registry import generate_sensors, SensorDefinition
 from app.simulator.noise import gaussian_noise, slow_drift, anomaly_ramp
 from app.persistence.batch_writer import BatchWriter
+from app.alerts.alert_engine import AlertEngine
 
 class SimulatorService:
     def __init__(self):
         self.sensors: List[SensorDefinition] = generate_sensors()
         self.batch_writer = BatchWriter()
+        self.alert_engine = AlertEngine()
         self.current_state: Dict[str, float] = {s.id: s.baseline_value for s in self.sensors}
         self.active_faults: Dict[str, float] = {}
         
@@ -28,6 +30,7 @@ class SimulatorService:
         self.is_running = True
         self.redis = aioredis.from_url(settings.redis_url, decode_responses=True)
         await self.batch_writer.start()
+        await self.alert_engine.start()
         self._task = asyncio.create_task(self._loop())
 
     async def stop(self):
@@ -39,6 +42,7 @@ class SimulatorService:
             except asyncio.CancelledError:
                 pass
         await self.batch_writer.stop()
+        await self.alert_engine.stop()
         if self.redis:
             await self.redis.close()
 
@@ -79,6 +83,7 @@ class SimulatorService:
             reading_doc = {
                 "id": sensor.id,
                 "name": sensor.name,
+                "subsystem": sensor.subsystem,
                 "value": val,
                 "unit": sensor.unit,
                 "status": status,
@@ -92,7 +97,9 @@ class SimulatorService:
             grouped_readings[sub].append(reading_doc)
 
         reading_docs_for_db = []
+        all_readings_flat = []
         for sub, readings in grouped_readings.items():
+            all_readings_flat.extend(readings)
             for r in readings:
                 reading_docs_for_db.append({
                     "time": now_dt,
@@ -100,6 +107,9 @@ class SimulatorService:
                     "value": r["value"]
                 })
         self.batch_writer.collect(reading_docs_for_db)
+        
+        # Process alerts asynchronously
+        await self.alert_engine.process_readings(all_readings_flat)
 
         if not self.redis:
             return

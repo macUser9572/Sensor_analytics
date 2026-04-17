@@ -39,13 +39,15 @@ export function useSensorStream() {
             }
             
             // HTTP fallback to quickly rehydrate the UI
-            fetch("http://localhost:8000/simulator/readings")
+            fetch("http://localhost:8000/data/sensors/current")
                 .then(res => res.json())
                 .then(data => {
                     const newReadings = {};
-                    data.readings.forEach(reading => {
-                        newReadings[reading.id] = reading;
-                    });
+                    if(Array.isArray(data)) {
+                        data.forEach(reading => {
+                            newReadings[reading.id] = reading;
+                        });
+                    }
                     setSensorReadings(prev => ({ ...prev, ...newReadings }));
                 })
                 .catch(console.error);
