@@ -21,10 +21,12 @@ export default function SensorHeatmap({ readings, onSensorClick }) {
        for(let i=0; i<120; i++) {
          const r = subReadings[i];
          if (r) {
-           const ratio = Math.min((r.value / (r.max_threshold || 1)), 1.2); 
-           const statusStr = r.status ? r.status.toUpperCase() : 'UNKNOWN';
+           const baseline = r.baseline ?? 0;
+           const range = (r.max_threshold || 1) - baseline;
+           const ratio = range > 0 ? Math.max(0, Math.min((r.value - baseline) / range, 1.2)) : 0;
+           const statusStr = r.status ? r.status.toUpperCase() : 'NORMAL';
            zRow.push(ratio);
-           textRow.push(`<b>${r.name}</b><br>ID: ${r.id}<br>Value: ${r.value.toFixed(2)} ${r.unit}<br>Threshold: ${r.max_threshold}<br>Status: ${statusStr}`);
+           textRow.push(`<b>${r.name}</b><br>ID: ${r.id}<br>Value: ${r.value.toFixed(2)} ${r.unit}<br>Baseline: ${baseline} ${r.unit}<br>Threshold: ${r.max_threshold}<br>Status: ${statusStr}`);
            cdRow.push(r.id);
          } else {
            zRow.push(null);

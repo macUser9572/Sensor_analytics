@@ -45,7 +45,10 @@ class AlertEngine:
                         self.active_alerts[sensor_id]["severity"] = status
             elif status == "normal":
                 if sensor_id in self.active_alerts:
-                    await self.resolve_alert(sensor_id)
+                    # Update the value to show it recovered, but do NOT auto-resolve
+                    self.active_alerts[sensor_id]["value"] = r["value"]
+                    if self.active_alerts[sensor_id]["severity"] != status:
+                        self.active_alerts[sensor_id]["severity"] = status
 
     async def fire_alert(self, reading: Dict[str, Any]):
         sensor_id = reading["id"]

@@ -10,7 +10,8 @@ export default function Layout({
   sensorReadings,
   selectedSubsystem,
   onSubsystemSelect,
-  alerts
+  alerts,
+  onAcknowledge
 }) {
 
   const subsystems = ['Overview', 'turbine', 'boiler', 'generator', 'cooling', 'transformer', 'auxiliary'];
@@ -80,7 +81,7 @@ export default function Layout({
       )}
 
       {/* Left Sidebar Layout */}
-      <aside className="fixed top-[64px] left-0 w-[220px] h-[calc(100vh-64px)] bg-dashboard-card/50 border-r border-dashboard-border flex flex-col p-4 w-full">
+      <aside className="fixed top-[64px] left-0 w-[220px] h-[calc(100vh-64px)] bg-dashboard-card/50 border-r border-dashboard-border flex flex-col p-4">
          <nav className="flex-1 space-y-2">
             {subsystems.map(sub => (
               <div key={sub}>
@@ -102,13 +103,13 @@ export default function Layout({
       </aside>
 
       {/* Main Flexible Content Area */}
-      <main className="flex-1 overflow-auto p-6 flex flex-col">
+      <main className="p-6" style={{ height: 'calc(100vh - 64px)', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
           {children}
       </main>
 
       {/* Right Alert Feed Layout */}
       <aside className="fixed top-[64px] right-0 w-[300px] h-[calc(100vh-64px)] bg-dashboard-card/50 border-l border-dashboard-border">
-         <AlertFeedPanel alerts={alerts} />
+         <AlertFeedPanel alerts={alerts} onAcknowledge={onAcknowledge} />
       </aside>
 
     </div>

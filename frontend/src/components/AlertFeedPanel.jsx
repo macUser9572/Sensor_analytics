@@ -1,13 +1,11 @@
 import React from 'react';
 import axios from 'axios';
 
-export default function AlertFeedPanel({ alerts }) {
+export default function AlertFeedPanel({ alerts, onAcknowledge }) {
   
   const handleAcknowledge = async (id) => {
       try {
-          // Placeholder for Phase 6
-          // await axios.post(`http://localhost:8000/api/v1/alerts/${id}/ack`);
-          console.log(`Ack requested for ${id}`);
+          if (onAcknowledge) await onAcknowledge(id);
       } catch (err) {
           console.error(err);
       }
@@ -39,14 +37,14 @@ export default function AlertFeedPanel({ alerts }) {
                      <span className={`px-1.5 py-0.5 text-[10px] font-bold uppercase rounded ${alert.severity === 'critical' ? 'bg-critical/20 text-critical' : 'bg-warning/20 text-warning'}`}>
                        {alert.severity}
                      </span>
-                     <span className="font-bold text-dashboard-textMain">{alert.id}</span>
+                     <span className="font-bold text-dashboard-textMain">{alert.sensor_id || alert.sensorId || alert.id}</span>
                    </div>
                    <span className="text-[10px] text-dashboard-textMuted">Just now</span>
                 </div>
                 
                 <div className="text-dashboard-textMuted text-xs leading-tight">
-                  <p className="text-dashboard-textMain font-medium truncate">{alert.name}</p>
-                  <p className="mt-1 font-mono">Value: <span className={alert.severity === 'critical' ? 'text-critical' : 'text-warning'}>{alert.value}</span> / {alert.threshold}</p>
+                  <p className="text-dashboard-textMain font-medium truncate">{alert.sensor_name || alert.metric || alert.name}</p>
+                  <p className="mt-1 font-mono">Value: <span className={alert.severity === 'critical' ? 'text-critical' : 'text-warning'}>{(alert.value ?? alert.currentValue ?? alert.current_value ?? 0).toFixed?.(2) || (alert.value ?? alert.currentValue ?? alert.current_value)}</span> / {alert.threshold}</p>
                 </div>
 
                 <div className="pt-2 flex justify-end">

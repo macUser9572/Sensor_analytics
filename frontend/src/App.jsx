@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSensorStream } from '../hooks/useSensorStream';
+import { useAlertStream } from '../hooks/useAlertStream';
 import Layout from './components/Layout';
 import SensorHeatmap from './components/SensorHeatmap';
 import SubsystemLineChart from './components/SubsystemLineChart';
@@ -8,32 +9,9 @@ import SensorDetailModal from './components/SensorDetailModal';
 
 export default function App() {
   const { sensorReadings, subsystemStatus, connectionStatus } = useSensorStream();
+  const { alerts, acknowledgeAlert } = useAlertStream();
   const [selectedSubsystem, setSelectedSubsystem] = useState('Overview');
   const [selectedSensor, setSelectedSensor] = useState(null);
-
-  // Derive alert feed conceptually by scanning for active warnings/critical
-  const [alerts, setAlerts] = useState([]);
-
-  useEffect(() => {
-    // Generate alerts dynamically from current payloads for the feed
-    // In Phase 6 this uses /ws/alerts.
-    const activeAlerts = Object.values(sensorReadings)
-      .filter(r => r.status === 'warning' || r.status === 'critical')
-      .map(r => ({
-        id: r.id,
-        severity: r.status,
-        name: r.name,
-        subsystem: r.subsystem,
-        value: r.value,
-        threshold: r.max_threshold,
-        time: new Date().toISOString() // naive for demo
-      }))
-      .slice(0, 20); // Keep max 20
-      
-    // Merging logic would go here if we tracked history of alerts,
-    // For now we just replace to avoid complexity, since the feed checks get/post
-    setAlerts(activeAlerts);
-  }, [sensorReadings]);
 
   const handleSubsystemSelect = (sub) => {
     setSelectedSubsystem(sub);
@@ -52,10 +30,11 @@ export default function App() {
       selectedSubsystem={selectedSubsystem}
       onSubsystemSelect={handleSubsystemSelect}
       alerts={alerts}
+      onAcknowledge={acknowledgeAlert}
     >
-      <div className="flex flex-col h-full w-full space-y-4">
+      <div className="flex flex-col" style={{ height: '100%', minHeight: 0 }}>
         {selectedSubsystem !== 'Overview' && (
-          <div className="shrink-0 bg-dashboard-card border border-dashboard-border rounded-lg p-4">
+          <div className="shrink-0 bg-dashboard-card border border-dashboard-border rounded-lg p-4 mb-4">
              <CriticalGauges 
                subsystem={selectedSubsystem} 
                readings={sensorReadings} 
@@ -63,7 +42,7 @@ export default function App() {
           </div>
         )}
         
-        <div className="flex-1 bg-dashboard-card border border-dashboard-border rounded-lg p-4 overflow-hidden relative">
+        <div className="bg-dashboard-card border border-dashboard-border rounded-lg p-4 overflow-hidden" style={{ flex: 1, minHeight: 0 }}>
           {selectedSubsystem === 'Overview' ? (
             <SensorHeatmap 
                readings={sensorReadings} 

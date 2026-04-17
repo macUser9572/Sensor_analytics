@@ -73,9 +73,11 @@ class SimulatorService:
             
             val = self.current_state[sensor.id]
             
+            # Warning triggers at 80% of the way from baseline to max_threshold
+            warning_threshold = sensor.baseline_value + 0.8 * (sensor.max_threshold - sensor.baseline_value)
             if val >= sensor.max_threshold:
                 status = "critical"
-            elif val >= 0.8 * sensor.max_threshold:
+            elif val >= warning_threshold:
                 status = "warning"
             else:
                 status = "normal"
@@ -87,6 +89,7 @@ class SimulatorService:
                 "value": val,
                 "unit": sensor.unit,
                 "status": status,
+                "baseline": sensor.baseline_value,
                 "min_threshold": sensor.min_threshold,
                 "max_threshold": sensor.max_threshold
             }
