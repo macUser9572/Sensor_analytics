@@ -7,11 +7,14 @@ from typing import Dict, Any, List
 import redis.asyncio as aioredis
 from app.config import settings
 from app.simulator.sensor_registry import generate_sensors, SensorDefinition
+from app.simulator.sensor_registry import generate_sensors, SensorDefinition
 from app.simulator.noise import gaussian_noise, slow_drift, anomaly_ramp
+from app.persistence.batch_writer import BatchWriter
 
 class SimulatorService:
     def __init__(self):
         self.sensors: List[SensorDefinition] = generate_sensors()
+        self.batch_writer = BatchWriter()
         self.current_state: Dict[str, float] = {s.id: s.baseline_value for s in self.sensors}
         self.active_faults: Dict[str, float] = {}
         
@@ -24,6 +27,7 @@ class SimulatorService:
             return
         self.is_running = True
         self.redis = aioredis.from_url(settings.redis_url, decode_responses=True)
+        await self.batch_writer.start()
         self._task = asyncio.create_task(self._loop())
 
     async def stop(self):
@@ -34,6 +38,7 @@ class SimulatorService:
                 await self._task
             except asyncio.CancelledError:
                 pass
+        await self.batch_writer.stop()
         if self.redis:
             await self.redis.close()
 
@@ -43,7 +48,8 @@ class SimulatorService:
             await asyncio.sleep(1)
 
     async def tick(self):
-        now_str = datetime.now(timezone.utc).isoformat()
+        now_dt = datetime.now(timezone.utc)
+        now_str = now_dt.isoformat()
         now_ts = time.time()
         
         grouped_readings: Dict[str, List[Dict]] = {}
@@ -84,6 +90,16 @@ class SimulatorService:
             if sub not in grouped_readings:
                 grouped_readings[sub] = []
             grouped_readings[sub].append(reading_doc)
+
+        reading_docs_for_db = []
+        for sub, readings in grouped_readings.items():
+            for r in readings:
+                reading_docs_for_db.append({
+                    "time": now_dt,
+                    "sensor_id": r["id"],
+                    "value": r["value"]
+                })
+        self.batch_writer.collect(reading_docs_for_db)
 
         if not self.redis:
             return

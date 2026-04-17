@@ -21,6 +21,11 @@ from app.database import engine
 from app.routers import sensors, alerts
 from app.simulator.router import router as simulator_router
 from app.simulator.simulator_service import SimulatorService
+from app.websocket.connection_manager import ConnectionManager
+from app.websocket.redis_subscriber import RedisSubscriber
+from app.websocket.router import router as websocket_router
+from app.persistence.seed import insert_sensor_registry
+from app.persistence.router import router as persistence_router
 
 # ── Shared resources initialised at startup ─────────────────
 redis_client: aioredis.Redis | None = None
@@ -56,13 +61,21 @@ async def lifespan(app: FastAPI):
     if not minio_client.bucket_exists(settings.minio_bucket):
         minio_client.make_bucket(settings.minio_bucket)
 
+    await insert_sensor_registry()
+
     simulator = SimulatorService()
     app.state.simulator = simulator
     await simulator.start()
 
+    ws_manager = ConnectionManager()
+    app.state.ws_manager = ws_manager
+    redis_subscriber = RedisSubscriber(ws_manager)
+    await redis_subscriber.start()
+
     yield  # ← application runs here
 
     # ── Shutdown ────────────────────────────────
+    await redis_subscriber.stop()
     await simulator.stop()
     if redis_client:
         await redis_client.close()
@@ -93,6 +106,8 @@ app.add_middleware(
 app.include_router(sensors.router, prefix="/api/v1")
 app.include_router(alerts.router, prefix="/api/v1")
 app.include_router(simulator_router)
+app.include_router(websocket_router)
+app.include_router(persistence_router)
 
 
 # ── Health check ────────────────────────────────────────────
