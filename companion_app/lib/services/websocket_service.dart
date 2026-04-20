@@ -12,8 +12,10 @@ class WebSocketService {
   final Map<String, SubsystemStatus> _currentStatus = {};
   final _subsystemsController = StreamController<Map<String, SubsystemStatus>>.broadcast();
   final _alertEventController  = StreamController<AlertEvent>.broadcast();
+  final _liveReadingsController = StreamController<List<SensorReading>>.broadcast();
 
   Stream<Map<String, SubsystemStatus>> get subsystemStatusStream => _subsystemsController.stream;
+  Stream<List<SensorReading>> get liveReadingsStream => _liveReadingsController.stream;
 
   /// Emits both "fired" and "resolved" events so the UI can add OR remove alerts
   Stream<AlertEvent> get alertEventStream => _alertEventController.stream;
@@ -48,11 +50,21 @@ class WebSocketService {
               final List<dynamic> readings = parsedData['readings'] as List<dynamic>;
 
               int normal = 0, warning = 0, critical = 0;
+              final List<SensorReading> parsedReadings = [];
+
               for (final r in readings) {
                 final s = r['status'] as String? ?? 'normal';
                 if (s == 'normal')   normal++;
                 else if (s == 'warning')  warning++;
                 else if (s == 'critical') critical++;
+                
+                try {
+                  // The backend might not always send 'subsystem' in the reading object
+                  r['subsystem'] ??= subName;
+                  parsedReadings.add(SensorReading.fromJson(r as Map<String, dynamic>));
+                } catch(e) {
+                  print('Error parsing sensor reading: $e');
+                }
               }
 
               _currentStatus[subName] = SubsystemStatus(
@@ -64,6 +76,7 @@ class WebSocketService {
               );
 
               _subsystemsController.add(Map.from(_currentStatus));
+              _liveReadingsController.add(parsedReadings);
             }
           } catch (e) {
             print('Error parsing live data: $e');
@@ -148,6 +161,7 @@ class WebSocketService {
     _alertsChannel?.sink.close();
     _subsystemsController.close();
     _alertEventController.close();
+    _liveReadingsController.close();
   }
 }
 

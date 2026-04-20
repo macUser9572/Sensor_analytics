@@ -104,8 +104,57 @@ class ActiveAlertsNotifier extends StateNotifier<AsyncValue<List<Alert>>> {
   }
 }
 
-// Current Sensors State — fetches from REST initially; updated by WS
-final currentSensorsProvider = FutureProvider.family<List<SensorReading>, String>((ref, subsystem) async {
-  final allSensors = await apiService.fetchCurrentSensors();
-  return allSensors.values.where((s) => s.subsystem == subsystem).toList();
+// A provider that exposes the live readings stream
+final liveReadingsStreamProvider = StreamProvider<List<SensorReading>>((ref) {
+  return webSocketService.liveReadingsStream;
 });
+
+// Current Sensors State — fetches from REST initially; updated by WS
+final currentSensorsProvider = StateNotifierProvider.family<CurrentSensorsNotifier, AsyncValue<List<SensorReading>>, String>((ref, subsystem) {
+  final notifier = CurrentSensorsNotifier(subsystem);
+  notifier.fetchInitialSensors();
+
+  // Listen to live WebSocket stream
+  ref.listen<AsyncValue<List<SensorReading>>>(liveReadingsStreamProvider, (previous, next) {
+    if (next.hasValue && next.value != null) {
+      notifier.updateFromLive(next.value!);
+    }
+  });
+
+  return notifier;
+});
+
+class CurrentSensorsNotifier extends StateNotifier<AsyncValue<List<SensorReading>>> {
+  final String subsystem;
+
+  CurrentSensorsNotifier(this.subsystem) : super(const AsyncLoading());
+
+  Future<void> fetchInitialSensors() async {
+    try {
+      state = const AsyncLoading();
+      final allSensors = await apiService.fetchCurrentSensors();
+      final filtered = allSensors.values.where((s) => s.subsystem == subsystem).toList();
+      state = AsyncData(filtered);
+    } catch (e, stack) {
+      state = AsyncError(e, stack);
+    }
+  }
+
+  void updateFromLive(List<SensorReading> liveReadings) {
+    if (state.hasValue && state.value != null) {
+      final currentMap = { for (var s in state.value!) s.id: s };
+      bool changed = false;
+
+      for (final r in liveReadings) {
+        if (r.subsystem == subsystem) {
+          currentMap[r.id] = r;
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        state = AsyncData(currentMap.values.toList());
+      }
+    }
+  }
+}
