@@ -91,3 +91,29 @@ async def get_subsystem_summary(subsystem: str, minutes: int = 60) -> List[Dict[
     except Exception as e:
         logger.error(f"Error querying subsystem summary: {e}")
         return []
+
+from datetime import datetime
+
+async def get_export_data(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+    # Parse ISO strings into datetime objects (asyncpg requires this)
+    start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+    end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+
+    async with engine.connect() as conn:
+        stmt = text("""
+            SELECT time, sensor_id, value
+            FROM readings
+            WHERE time >= :start_date AND time <= :end_date
+            ORDER BY time ASC
+            LIMIT 50000
+        """)
+        result = await conn.execute(stmt, {"start_date": start_dt, "end_date": end_dt})
+        rows = result.fetchall()
+        return [
+            {
+                "time": row.time.isoformat() if hasattr(row.time, 'isoformat') else row.time,
+                "sensor_id": row.sensor_id,
+                "value": row.value
+            }
+            for row in rows
+        ]

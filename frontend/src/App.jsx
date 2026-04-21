@@ -7,6 +7,7 @@ import SubsystemLineChart from './components/SubsystemLineChart';
 import RealDataView from './components/RealDataView';
 import CriticalGauges from './components/CriticalGauges';
 import SensorDetailModal from './components/SensorDetailModal';
+import ExportDataView from './components/ExportDataView';
 
 export default function App() {
   const { sensorReadings, subsystemStatus, connectionStatus } = useSensorStream();
@@ -33,7 +34,7 @@ export default function App() {
       onAcknowledge={acknowledgeAlert}
     >
       <div className="flex flex-col" style={{ height: '100%', minHeight: 0 }}>
-        {selectedSubsystem !== 'Overview' && selectedSubsystem !== 'real data' && (
+        {selectedSubsystem !== 'Overview' && selectedSubsystem !== 'real data' && selectedSubsystem !== 'Export Data' && (
           <div className="shrink-0 bg-dashboard-card border border-dashboard-border rounded-lg p-4 mb-4">
              <CriticalGauges 
                subsystem={selectedSubsystem} 
@@ -42,7 +43,7 @@ export default function App() {
           </div>
         )}
         
-        <div className="bg-dashboard-card border border-dashboard-border rounded-lg p-4 overflow-hidden" style={{ flex: 1, minHeight: 0 }}>
+        <div className="bg-dashboard-card border border-dashboard-border rounded-lg p-4 overflow-hidden flex" style={{ flex: 1, minHeight: 0 }}>
           {selectedSubsystem === 'Overview' ? (
             <SensorHeatmap 
                readings={sensorReadings} 
@@ -53,6 +54,8 @@ export default function App() {
                readings={sensorReadings} 
                onSensorClick={(id) => handleSensorClick(id, 'realdata')} 
              />
+          ) : selectedSubsystem === 'Export Data' ? (
+             <ExportDataView />
           ) : (
             <SubsystemLineChart 
                subsystem={selectedSubsystem} 

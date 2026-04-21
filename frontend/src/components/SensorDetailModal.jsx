@@ -2,8 +2,22 @@ import React, { useState, useEffect, useRef } from 'react';
 import Plot from 'react-plotly.js';
 import axios from 'axios';
 
+const toISTString = (dateInput) => {
+  const d = new Date(dateInput);
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(d);
+  const getPart = (type) => parts.find(p => p.type === type).value;
+  return `${getPart('year')}-${getPart('month')}-${getPart('day')} ${getPart('hour')}:${getPart('minute')}:${getPart('second')}`;
+};
+
 export default function SensorDetailModal({ sensor, source, onClose }) {
   const [history, setHistory] = useState(null);
+  const [revision, setRevision] = useState(0);
   const [stats, setStats] = useState({ min: 0, max: 0, mean: 0 });
   const [viewMode, setViewMode] = useState(source === 'realdata' ? 'raw' : 'plot');
   const lastValueRef = useRef(null);
@@ -17,9 +31,10 @@ export default function SensorDetailModal({ sensor, source, onClose }) {
         
         const data = res.data;
         if(data.length > 0) {
-            const x = data.map(d => d.time);
+            const x = data.map(d => toISTString(d.time));
             const y = data.map(d => d.value);
             setHistory({ x, y });
+            setRevision(r => r + 1);
             
             const min = Math.min(...y);
             const max = Math.max(...y);
@@ -41,7 +56,7 @@ export default function SensorDetailModal({ sensor, source, onClose }) {
         setHistory(prev => {
             if (!prev) return prev;
             
-            const newX = [...prev.x, sensor.timestamp || new Date().toISOString()];
+            const newX = [...prev.x, toISTString(sensor.timestamp || new Date())];
             const newY = [...prev.y, sensor.value];
             
             // Keep maximum of 3600 points (roughly 1 hour at 1s intervals)
@@ -51,6 +66,7 @@ export default function SensorDetailModal({ sensor, source, onClose }) {
             }
             return { x: newX, y: newY };
         });
+        setRevision(r => r + 1);
     }
   }, [sensor.value]);
 
@@ -114,8 +130,8 @@ export default function SensorDetailModal({ sensor, source, onClose }) {
                   <div className="absolute inset-0">
                     <Plot 
                       data={[{
-                         x: history.x,
-                         y: history.y,
+                         x: history.x.slice(-300),
+                         y: history.y.slice(-300),
                          type: 'scatter',
                          mode: 'lines',
                          fill: 'tozeroy',
@@ -124,12 +140,20 @@ export default function SensorDetailModal({ sensor, source, onClose }) {
                       }]}
                       layout={{
                          autosize: true,
-                         datarevision: history.x.length,
+                         datarevision: revision,
                          margin: { t: 30, l: 50, r: 30, b: 50 },
                          paper_bgcolor: 'transparent',
                          plot_bgcolor: 'transparent',
                          font: { color: '#94a3b8', family: 'monospace' },
-                         xaxis: { showgrid: true, gridcolor: '#334155', title: 'Time' },
+                         xaxis: { 
+                           type: 'date',
+                           showgrid: true, 
+                           gridcolor: '#334155', 
+                           title: 'Time',
+                           zeroline: false,
+                           tickformat: '%H:%M:%S',
+                           nticks: 6
+                         },
                          yaxis: { showgrid: true, gridcolor: '#334155', title: sensor.unit }
                       }}
                       useResizeHandler={true}

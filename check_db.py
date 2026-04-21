@@ -1,13 +1,19 @@
 import asyncio
-from sqlalchemy import text
 from app.database import engine
+from sqlalchemy import text
 
-async def check():
+async def inspect():
     async with engine.connect() as conn:
-        result = await conn.execute(text("SELECT id, sensor_id, value, threshold, severity, fired_at FROM alerts WHERE sensor_id = 'T003' ORDER BY fired_at DESC"))
+        stmt = text("SELECT time, sensor_id, value FROM readings ORDER BY time DESC LIMIT 5")
+        result = await conn.execute(stmt)
         rows = result.fetchall()
-        print(f"Total rows for T003: {len(rows)}")
+        print("LATEST READINGS:")
         for r in rows:
-            print(f"Row: {r.id}, {r.sensor_id}, {r.value}, {r.threshold}, {r.severity}, {r.fired_at}")
-            
-asyncio.run(check())
+            print(f"{r.time} (Type: {type(r.time)}) - Sensor: {r.sensor_id} - Value: {r.value}")
+
+        stmt2 = text("SELECT count(*) FROM readings")
+        res2 = await conn.execute(stmt2)
+        print(f"Total count: {res2.scalar()}")
+
+if __name__ == "__main__":
+    asyncio.run(inspect())

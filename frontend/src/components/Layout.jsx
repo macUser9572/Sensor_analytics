@@ -15,12 +15,10 @@ export default function Layout({
 }) {
 
 
-
-  const [time, setTime] = React.useState(new Date().toLocaleTimeString());
-
+  const [time, setTime] = React.useState(new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }));
   React.useEffect(() => {
     const timer = setInterval(() => {
-       setTime(new Date().toLocaleTimeString());
+       setTime(new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }));
     }, 1000);
     return () => clearInterval(timer);
   }, []);
@@ -84,7 +82,7 @@ export default function Layout({
       <aside className="fixed top-[64px] left-0 w-[220px] h-[calc(100vh-64px)] bg-dashboard-card/50 border-r border-dashboard-border flex flex-col p-4">
          <nav className="flex-1 space-y-1 overflow-y-auto pr-1">
             <div className="text-[10px] font-bold text-dashboard-textMuted uppercase pt-1 pb-1 tracking-wider">Dashboard Views</div>
-            {['Overview', 'real data'].map(view => (
+            {['Overview', 'real data', 'Export Data'].map(view => (
               <button 
                 key={view}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded transition-colors ${selectedSubsystem === view ? 'bg-dashboard-border text-white' : 'hover:bg-dashboard-border/50 text-dashboard-textMuted'}`}

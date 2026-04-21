@@ -9,14 +9,27 @@ const COLORS = [
 
 const MAX_POINTS = 60;
 
+const toISTString = (dateInput) => {
+  const d = new Date(dateInput);
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(d);
+  const getPart = (type) => parts.find(p => p.type === type).value;
+  return `${getPart('year')}-${getPart('month')}-${getPart('day')} ${getPart('hour')}:${getPart('minute')}:${getPart('second')}`;
+};
+
 export default function SubsystemLineChart({ subsystem, readings }) {
-  const historyRef  = useRef({});
+  const historyRef = useRef({});
   const revisionRef = useRef(0);
   const containerRef = useRef(null);
 
-  const [plotData,   setPlotData]   = useState([]);
-  const [revision,   setRevision]   = useState(0);
-  const [dims,       setDims]       = useState({ w: 800, h: 400 });
+  const [plotData, setPlotData] = useState([]);
+  const [revision, setRevision] = useState(0);
+  const [dims, setDims] = useState({ w: 800, h: 400 });
 
   /* ── measure the container's real pixel size ── */
   useEffect(() => {
@@ -44,18 +57,18 @@ export default function SubsystemLineChart({ subsystem, readings }) {
     const subReadings = Object.values(readings).filter(r => r.subsystem === subsystem);
     if (subReadings.length === 0) return;
 
-    const timeStr  = new Date().toISOString();
-    let   colorIdx = Object.keys(historyRef.current).length;
+    const timeStr = toISTString(new Date());
+    let colorIdx = Object.keys(historyRef.current).length;
 
     subReadings.forEach(r => {
       if (!historyRef.current[r.id]) {
         historyRef.current[r.id] = {
-          x:          [],
-          y:          [],
-          name:       r.id,          // short label — sensor ID
-          unit:       r.unit,
+          x: [],
+          y: [],
+          name: r.id,          // short label — sensor ID
+          unit: r.unit,
           colorIndex: colorIdx % COLORS.length,
-          lineColor:  COLORS[colorIdx % COLORS.length],
+          lineColor: COLORS[colorIdx % COLORS.length],
         };
         colorIdx++;
       }
@@ -64,16 +77,16 @@ export default function SubsystemLineChart({ subsystem, readings }) {
       trace.x.push(timeStr);
       trace.y.push(r.value);
 
-      if      (r.status === 'critical') trace.lineColor = '#ef4444';
-      else if (r.status === 'warning')  trace.lineColor = '#f59e0b';
-      else                              trace.lineColor = COLORS[trace.colorIndex];
+      if (r.status === 'critical') trace.lineColor = '#ef4444';
+      else if (r.status === 'warning') trace.lineColor = '#f59e0b';
+      else trace.lineColor = COLORS[trace.colorIndex];
 
       if (trace.x.length > MAX_POINTS) { trace.x.shift(); trace.y.shift(); }
     });
 
     const traces = Object.values(historyRef.current).map(t => ({
-      x:    [...t.x],
-      y:    [...t.y],
+      x: [...t.x],
+      y: [...t.y],
       name: t.name,
       type: 'scatter',
       mode: 'lines',
@@ -113,30 +126,30 @@ export default function SubsystemLineChart({ subsystem, readings }) {
             key={subsystem}               /* remount on subsystem change */
             data={plotData}
             layout={{
-              autosize:       false,       /* we control size explicitly */
-              width:          dims.w,
-              height:         dims.h,
-              revision:       revision,
-              margin:         { t: 16, l: 55, r: 16, b: 44 },
-              paper_bgcolor:  'transparent',
-              plot_bgcolor:   'transparent',
-              font:           { color: '#94a3b8', family: 'monospace', size: 11 },
+              autosize: true,       /* we control size explicitly */
+              width: dims.w,
+              height: dims.h,
+              revision: revision,
+              margin: { t: 16, l: 55, r: 16, b: 44 },
+              paper_bgcolor: 'transparent',
+              plot_bgcolor: 'transparent',
+              font: { color: '#94a3b8', family: 'monospace', size: 11 },
               xaxis: {
-                type:      'date',
-                showgrid:  true,
+                type: 'date',
+                showgrid: true,
                 gridcolor: '#1e293b',
-                zeroline:  false,
-                tickformat:'%H:%M:%S',
-                nticks:    6,
+                zeroline: false,
+                tickformat: '%H:%M:%S',
+                nticks: 6,
               },
               yaxis: {
-                showgrid:  true,
+                showgrid: true,
                 gridcolor: '#1e293b',
-                zeroline:  false,
+                zeroline: false,
                 autorange: true,
               },
               showlegend: false,           /* 100 lines → legend is noise */
-              hovermode:  'closest',
+              hovermode: 'closest',
             }}
             useResizeHandler={false}       /* we drive size via dims state */
             style={{ display: 'block', width: `${dims.w}px`, height: `${dims.h}px` }}
