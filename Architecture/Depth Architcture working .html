@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BHEL Real-Time Sensor Analytics — System Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #030d1a;
+    --bg2: #061628;
+    --bg3: #0a1f35;
+    --grid: rgba(0,180,255,0.04);
+    --blue: #00b4ff;
+    --blue-dim: rgba(0,180,255,0.15);
+    --blue-glow: rgba(0,180,255,0.4);
+    --teal: #00ffcc;
+    --teal-dim: rgba(0,255,204,0.12);
+    --amber: #ffb300;
+    --amber-dim: rgba(255,179,0,0.12);
+    --red: #ff4444;
+    --purple: #9b6dff;
+    --purple-dim: rgba(155,109,255,0.12);
+    --green: #00e676;
+    --text: #c8e6ff;
+    --text-dim: #4a7a9b;
+    --border: rgba(0,180,255,0.2);
+    --panel-w: 360px;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content:'';
+    position:fixed;
+    inset:0;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events:none;
+    z-index:0;
+  }
+
+  /* Radial glow center */
+  body::after {
+    content:'';
+    position:fixed;
+    top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    width:80vw; height:80vh;
+    background: radial-gradient(ellipse, rgba(0,100,180,0.08) 0%, transparent 70%);
+    pointer-events:none;
+    z-index:0;
+  }
+
+  /* ── HEADER ── */
+  header {
+    position:relative; z-index:10;
+    padding: 28px 48px 20px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(0,30,60,0.9) 0%, transparent 100%);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+
+  .logo-area { display:flex; align-items:center; gap:16px; }
+
+  .logo-badge {
+    width:48px; height:48px;
+    border: 2px solid var(--blue);
+    border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Orbitron',sans-serif;
+    font-weight:900; font-size:13px;
+    color:var(--blue);
+    box-shadow: 0 0 20px var(--blue-glow), inset 0 0 10px rgba(0,180,255,0.1);
+    animation: pulse-badge 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-badge {
+    0%,100% { box-shadow: 0 0 20px var(--blue-glow), inset 0 0 10px rgba(0,180,255,0.1); }
+    50% { box-shadow: 0 0 35px var(--blue-glow), inset 0 0 20px rgba(0,180,255,0.2); }
+  }
+
+  .title-block h1 {
+    font-family:'Orbitron',sans-serif;
+    font-size:18px; font-weight:700;
+    color:#fff; letter-spacing:2px;
+  }
+
+  .title-block p {
+    font-size:11px; color:var(--text-dim);
+    letter-spacing:1px; margin-top:3px;
+  }
+
+  .header-stats {
+    display:flex; gap:24px; align-items:center;
+  }
+
+  .stat {
+    text-align:center;
+  }
+
+  .stat-val {
+    font-family:'Orbitron',sans-serif;
+    font-size:20px; font-weight:700;
+    color:var(--teal);
+    text-shadow: 0 0 12px rgba(0,255,204,0.5);
+  }
+
+  .stat-label {
+    font-size:9px; color:var(--text-dim);
+    letter-spacing:1.5px; text-transform:uppercase;
+    margin-top:2px;
+  }
+
+  .live-dot {
+    display:flex; align-items:center; gap:8px;
+    font-size:11px; color:var(--green);
+    letter-spacing:1px;
+  }
+
+  .live-dot::before {
+    content:'';
+    width:8px; height:8px;
+    border-radius:50%;
+    background:var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: blink 1.2s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%,100%{ opacity:1; } 50%{ opacity:0.3; }
+  }
+
+  /* ── MAIN CANVAS AREA ── */
+  .canvas-wrap {
+    position:relative; z-index:1;
+    width:100%;
+    padding: 0 0 40px;
+  }
+
+  canvas#flow {
+    position:absolute;
+    top:0; left:0;
+    width:100%; height:100%;
+    pointer-events:none;
+    z-index:2;
+  }
+
+  /* ── LAYERS ── */
+  .layer {
+    position:relative; z-index:3;
+    padding: 0 48px;
+    margin-bottom:0;
+  }
+
+  .layer-label {
+    font-size:9px; letter-spacing:3px;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    padding: 28px 0 12px;
+    display:flex; align-items:center; gap:12px;
+  }
+
+  .layer-label::after {
+    content:'';
+    flex:1; height:1px;
+    background: linear-gradient(90deg, var(--border), transparent);
+  }
+
+  .nodes-row {
+    display:flex;
+    gap:16px;
+    align-items:stretch;
+    flex-wrap:wrap;
+  }
+
+  /* ── NODE CARDS ── */
+  .node {
+    flex:1; min-width:180px;
+    border-radius:12px;
+    padding:20px;
+    cursor:pointer;
+    position:relative;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    overflow:hidden;
+  }
+
+  .node::before {
+    content:'';
+    position:absolute; inset:0;
+    opacity:0;
+    transition:opacity 0.3s;
+    pointer-events:none;
+  }
+
+  .node:hover { transform:translateY(-3px); }
+  .node:hover::before { opacity:1; }
+
+  /* Color variants */
+  .node.blue {
+    border-color: rgba(0,180,255,0.35);
+    background: linear-gradient(135deg, rgba(0,180,255,0.06) 0%, var(--bg2) 60%);
+  }
+  .node.blue::before { background: radial-gradient(circle at 50% 0%, var(--blue-dim), transparent 70%); }
+  .node.blue:hover { box-shadow: 0 8px 32px rgba(0,180,255,0.2), 0 0 0 1px rgba(0,180,255,0.5); }
+
+  .node.teal {
+    border-color: rgba(0,255,204,0.3);
+    background: linear-gradient(135deg, rgba(0,255,204,0.05) 0%, var(--bg2) 60%);
+  }
+  .node.teal::before { background: radial-gradient(circle at 50% 0%, var(--teal-dim), transparent 70%); }
+  .node.teal:hover { box-shadow: 0 8px 32px rgba(0,255,204,0.15), 0 0 0 1px rgba(0,255,204,0.4); }
+
+  .node.amber {
+    border-color: rgba(255,179,0,0.3);
+    background: linear-gradient(135deg, rgba(255,179,0,0.05) 0%, var(--bg2) 60%);
+  }
+  .node.amber::before { background: radial-gradient(circle at 50% 0%, var(--amber-dim), transparent 70%); }
+  .node.amber:hover { box-shadow: 0 8px 32px rgba(255,179,0,0.15), 0 0 0 1px rgba(255,179,0,0.4); }
+
+  .node.purple {
+    border-color: rgba(155,109,255,0.3);
+    background: linear-gradient(135deg, rgba(155,109,255,0.05) 0%, var(--bg2) 60%);
+  }
+  .node.purple::before { background: radial-gradient(circle at 50% 0%, var(--purple-dim), transparent 70%); }
+  .node.purple:hover { box-shadow: 0 8px 32px rgba(155,109,255,0.15), 0 0 0 1px rgba(155,109,255,0.4); }
+
+  .node.red {
+    border-color: rgba(255,68,68,0.3);
+    background: linear-gradient(135deg, rgba(255,68,68,0.05) 0%, var(--bg2) 60%);
+  }
+  .node.red:hover { box-shadow: 0 8px 32px rgba(255,68,68,0.15), 0 0 0 1px rgba(255,68,68,0.4); }
+
+  .node-icon {
+    font-size:22px; margin-bottom:10px;
+    display:block;
+  }
+
+  .node-title {
+    font-family:'Orbitron',sans-serif;
+    font-size:12px; font-weight:700;
+    letter-spacing:1px;
+    margin-bottom:6px;
+    color:#fff;
+  }
+
+  .node-sub {
+    font-size:10px; color:var(--text-dim);
+    line-height:1.6;
+  }
+
+  .node-tags {
+    display:flex; flex-wrap:wrap; gap:4px;
+    margin-top:12px;
+  }
+
+  .tag {
+    font-size:9px; letter-spacing:0.5px;
+    padding:3px 8px; border-radius:4px;
+    font-weight:500;
+  }
+
+  .tag.blue { background:rgba(0,180,255,0.15); color:var(--blue); border:1px solid rgba(0,180,255,0.3); }
+  .tag.teal { background:rgba(0,255,204,0.12); color:var(--teal); border:1px solid rgba(0,255,204,0.3); }
+  .tag.amber { background:rgba(255,179,0,0.12); color:var(--amber); border:1px solid rgba(255,179,0,0.3); }
+  .tag.purple { background:rgba(155,109,255,0.12); color:var(--purple); border:1px solid rgba(155,109,255,0.3); }
+  .tag.green { background:rgba(0,230,118,0.1); color:var(--green); border:1px solid rgba(0,230,118,0.3); }
+  .tag.red { background:rgba(255,68,68,0.1); color:var(--red); border:1px solid rgba(255,68,68,0.3); }
+
+  .node-click-hint {
+    position:absolute; top:12px; right:12px;
+    font-size:9px; color:var(--text-dim);
+    opacity:0; transition:opacity 0.2s;
+    letter-spacing:0.5px;
+  }
+
+  .node:hover .node-click-hint { opacity:1; }
+
+  /* Wide nodes */
+  .node.wide { flex:2; min-width:300px; }
+  .node.narrow { flex:0.6; min-width:140px; }
+
+  /* ── DETAIL PANEL ── */
+  #detail-panel {
+    position:fixed;
+    top:0; right:0;
+    width: var(--panel-w);
+    height:100vh;
+    background: rgba(6,22,40,0.97);
+    border-left: 1px solid var(--border);
+    z-index:100;
+    transform: translateX(var(--panel-w));
+    transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+    overflow-y:auto;
+    backdrop-filter: blur(12px);
+  }
+
+  #detail-panel.open { transform:translateX(0); }
+
+  .panel-header {
+    padding:24px;
+    border-bottom:1px solid var(--border);
+    position:sticky; top:0;
+    background:rgba(6,22,40,0.95);
+    backdrop-filter:blur(8px);
+    display:flex; justify-content:space-between; align-items:flex-start;
+  }
+
+  .panel-title {
+    font-family:'Orbitron',sans-serif;
+    font-size:13px; font-weight:700;
+    color:#fff; letter-spacing:1px;
+  }
+
+  .panel-subtitle {
+    font-size:10px; color:var(--text-dim);
+    margin-top:4px; letter-spacing:0.5px;
+  }
+
+  .panel-close {
+    background:none; border:1px solid var(--border);
+    color:var(--text-dim); cursor:pointer;
+    width:28px; height:28px; border-radius:6px;
+    font-size:14px;
+    display:flex; align-items:center; justify-content:center;
+    transition:all 0.2s;
+    flex-shrink:0;
+  }
+
+  .panel-close:hover { border-color:var(--red); color:var(--red); }
+
+  .panel-body { padding:24px; }
+
+  .panel-section {
+    margin-bottom:24px;
+  }
+
+  .panel-section-title {
+    font-size:9px; letter-spacing:2px;
+    text-transform:uppercase; color:var(--text-dim);
+    margin-bottom:10px;
+    padding-bottom:6px;
+    border-bottom:1px solid var(--border);
+  }
+
+  .panel-desc {
+    font-size:11px; line-height:1.8;
+    color:var(--text); font-family:'JetBrains Mono',monospace;
+    font-weight:300;
+  }
+
+  .spec-row {
+    display:flex; justify-content:space-between;
+    align-items:center;
+    padding:7px 0;
+    border-bottom:1px solid rgba(0,180,255,0.06);
+    font-size:10px;
+  }
+
+  .spec-key { color:var(--text-dim); }
+  .spec-val { color:var(--teal); font-weight:500; }
+
+  .code-block {
+    background:var(--bg3);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:14px;
+    font-size:10px;
+    line-height:1.8;
+    color:var(--text);
+    overflow-x:auto;
+    white-space:pre;
+    margin-top:8px;
+  }
+
+  .code-block .kw { color:var(--blue); }
+  .code-block .str { color:var(--teal); }
+  .code-block .cmt { color:var(--text-dim); }
+  .code-block .num { color:var(--amber); }
+
+  .why-box {
+    background: linear-gradient(135deg, rgba(0,255,204,0.05), transparent);
+    border:1px solid rgba(0,255,204,0.2);
+    border-radius:8px;
+    padding:14px;
+    font-size:10px;
+    line-height:1.8;
+    color:var(--text);
+    margin-top:8px;
+  }
+
+  .why-box strong { color:var(--teal); }
+
+  /* ── FLOW CONNECTORS TEXT LABELS ── */
+  .connector-labels {
+    position:relative; z-index:3;
+    display:flex;
+    justify-content:center;
+    gap:40px;
+    padding:6px 48px;
+  }
+
+  .flow-label {
+    font-size:9px; color:var(--text-dim);
+    letter-spacing:1px;
+    display:flex; align-items:center; gap:6px;
+  }
+
+  .flow-label .arrow { color:var(--blue); }
+
+  /* ── FOOTER ── */
+  footer {
+    position:relative; z-index:5;
+    padding:20px 48px;
+    border-top:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+    background:rgba(3,13,26,0.8);
+  }
+
+  footer p { font-size:10px; color:var(--text-dim); letter-spacing:0.5px; }
+
+  .tech-pills { display:flex; gap:8px; flex-wrap:wrap; }
+
+  .tech-pill {
+    font-size:9px; padding:4px 10px;
+    border-radius:20px;
+    border:1px solid var(--border);
+    color:var(--text-dim);
+    letter-spacing:0.5px;
+  }
+
+  /* ── OVERLAY (backdrop) ── */
+  #overlay {
+    position:fixed; inset:0;
+    background:rgba(3,13,26,0.5);
+    z-index:99;
+    opacity:0; pointer-events:none;
+    transition:opacity 0.3s;
+    backdrop-filter:blur(2px);
+  }
+
+  #overlay.show { opacity:1; pointer-events:all; }
+
+  /* ── SUBSYSTEM MINI-BADGES ── */
+  .subsystem-grid {
+    display:grid; grid-template-columns:1fr 1fr 1fr;
+    gap:6px; margin-top:12px;
+  }
+
+  .sub-badge {
+    padding:6px 8px; border-radius:6px;
+    font-size:9px; letter-spacing:0.5px;
+    text-align:center;
+    border:1px solid;
+  }
+
+  .sub-badge.t { background:rgba(0,180,255,0.1); border-color:rgba(0,180,255,0.3); color:var(--blue); }
+  .sub-badge.b { background:rgba(255,68,68,0.08); border-color:rgba(255,68,68,0.3); color:var(--red); }
+  .sub-badge.g { background:rgba(0,230,118,0.08); border-color:rgba(0,230,118,0.3); color:var(--green); }
+  .sub-badge.c { background:rgba(0,255,204,0.08); border-color:rgba(0,255,204,0.3); color:var(--teal); }
+  .sub-badge.tr { background:rgba(155,109,255,0.1); border-color:rgba(155,109,255,0.3); color:var(--purple); }
+  .sub-badge.a { background:rgba(255,179,0,0.08); border-color:rgba(255,179,0,0.3); color:var(--amber); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+  /* Animate nodes in on load */
+  .node {
+    animation: fadein 0.5s ease both;
+  }
+
+  @keyframes fadein {
+    from { opacity:0; transform:translateY(10px); }
+    to { opacity:1; transform:translateY(0); }
+  }
+
+  .layer:nth-child(1) .node { animation-delay:0.1s; }
+  .layer:nth-child(2) .node { animation-delay:0.2s; }
+  .layer:nth-child(3) .node { animation-delay:0.3s; }
+  .layer:nth-child(4) .node { animation-delay:0.4s; }
+  .layer:nth-child(5) .node { animation-delay:0.5s; }
+  .layer:nth-child(6) .node { animation-delay:0.6s; }
+
+  /* Active state */
+  .node.active {
+    outline:2px solid var(--blue);
+    outline-offset:2px;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo-area">
+    <div class="logo-badge">BHEL</div>
+    <div class="title-block">
+      <h1>SYSTEM ARCHITECTURE</h1>
+      <p>REAL-TIME SENSOR ANALYTICS PLATFORM — HARIDWAR UNIT 5 — 500MW THERMAL</p>
+    </div>
+  </div>
+  <div class="header-stats">
+    <div class="stat">
+      <div class="stat-val">500</div>
+      <div class="stat-label">Sensors</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">6</div>
+      <div class="stat-label">Subsystems</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">1s</div>
+      <div class="stat-label">Tick Rate</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val" id="rate-counter">500</div>
+      <div class="stat-label">Rows/sec</div>
+    </div>
+    <div class="live-dot">SYSTEM LIVE</div>
+  </div>
+</header>
+
+<!-- CANVAS (particle animations) -->
+<div class="canvas-wrap" id="canvas-wrap">
+  <canvas id="flow"></canvas>
+
+  <!-- LAYER 1: SIMULATOR -->
+  <div class="layer" id="layer-sim">
+    <div class="layer-label">01 — Data Generation Layer</div>
+    <div class="nodes-row">
+
+      <div class="node blue wide" data-id="simulator" onclick="openPanel('simulator')">
+        <span class="node-click-hint">CLICK FOR DETAILS</span>
+        <span class="node-icon">⚙️</span>
+        <div class="node-title">Python Sensor Simulator</div>
+        <div class="node-sub">Generates 500 realistic sensor readings every second with Gaussian noise, slow drift, and on-demand anomaly injection.</div>
+        <div class="subsystem-grid" style="margin-top:14px;">
+          <div class="sub-badge t">Turbine ×120</div>
+          <div class="sub-badge b">Boiler ×100</div>
+          <div class="sub-badge g">Generator ×80</div>
+          <div class="sub-badge c">Cooling ×80</div>
+          <div class="sub-badge tr">Transformer ×60</div>
+          <div class="sub-badge a">Auxiliary ×60</div>
+        </div>
+        <div class="node-tags">
+          <span class="tag blue">Python 3.11</span>
+          <span class="tag teal">asyncio</span>
+          <span class="tag amber">Pluggable Source</span>
+        </div>
+      </div>
+
+      <div class="node amber" data-id="anomaly" onclick="openPanel('anomaly')">
+        <span class="node-click-hint">CLICK FOR DETAILS</span>
+        <span class="node-icon">⚡</span>
+        <div class="node-title">Anomaly Engine</div>
+        <div class="node-sub">Demo-controlled fault injection. Ramps sensor values toward threshold on trigger. Named scenarios for BHEL demo.</div>
+        <div class="node-tags">
+          <span class="tag amber">Fault Injection</span>
+          <span class="tag amber">Named Scenarios</span>
+        </div>
+      </div>
+
+      <div class="node teal narrow" data-id="datasource" onclick="openPanel('datasource')">
+        <span class="node-click-hint">CLICK FOR DETAILS</span>
+        <span class="node-icon">🔌</span>
+        <div class="node-title">Data Source Interface</div>
+        <div class="node-sub">Pluggable. Swap simulator for SCADA / OPC-UA in production.</div>
+        <div class="node-tags">
+          <span class="tag teal">OPC-UA Ready</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- LAYER 2: STREAMING -->
+  <div class="layer" id="layer-stream">
+    <div class="layer-label">02 — Streaming Backbone</div>
+    <div class="nodes-row">
+
+      <div class="node blue" data-id="redis-pubsub" onclick="openPanel('redis-pubsub')">
+        <span class="node-click-hint">CLICK FOR DETAILS</span>
+        <span class="node-icon">📡</span>
+        <div class="node-title">Redis Pub/Sub</div>
+        <div class="node-sub">6 channels (one per subsystem). Fan-out to all connected clients. Solves WebSocket multi-instance scaling.</div>
+        <div class="node-tags">
+          <span class="tag blue">Redis 7</span>
+          <span class="tag teal">6 Channels</span>
+          <span class="tag green">Fan-out</span>
+        </div>
+      </div>
+
+      <div class="node blue wide" data-id="fastapi" onclick="openPanel('fastapi')">
+        <span class="node-click-hint">CLICK FOR DETAILS</span>
+        <span class="node-icon">🚀</span>
+        <div class="node-title">FastAPI Backend</div>
+        <div class="node-sub">Async WebSocket broadcaster. REST API for historical queries, sensor metadata, and alert management. Connection manager handles all clients.</div>
+        <div class="node-tags">
+          <span class="tag blue">FastAPI</span>
+          <span class="tag teal">WebSocket</span>
+          <span class="tag teal">REST API</span>
+          <span class="tag amber">asyncpg</span>
+        </div>
+      </div>
+
+      <div class="node red" data-id="alert-engine" onclick="openPanel('alert-engine')">
+        <span class="node-click-hint">CLICK FOR DETAILS</span>
+        <span class="node-icon">🚨</span>
+        <div class="node-title">Alert Engine</div>
+        <div class="node-sub">Threshold detection with deduplication. Fires once per event. Auto-resolves when sensor returns to normal.</div>
+        <div class="node-tags">
+          <span class="tag red">Deduplication</span>
+          <span class="tag amber">Warning 80%</span>
+          <span class="tag red">Critical 100%</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- LAYER 3: STORAGE -->
+  <div class="layer" id="layer-storage">
+    <div class="layer-label">03 — Storage Layer</div>
+    <div class="nodes-row">
+
+      <div class="node teal wide" data-id="timescaledb" onclick="openPanel('timescaledb')">
+        <span class="node-click-hint">CLICK FOR DETAILS</span>
+        <span class="node-icon">🗄️</span>
+        <div class="node-title">TimescaleDB</div>
+        <div class="node-sub">PostgreSQL with time-series extension. Hypertables for auto-partitioning. Continuous aggregates for instant historical queries. Batch writes every 5 seconds — 500 writes/sec handled at 0.05% capacity.</div>
+        <div class="node-tags">
+          <span class="tag teal">Hypertables</span>
+          <span class="tag teal">Continuous Aggregates</span>
+          <span class="tag green">Full SQL + JOINs</span>
+          <span class="tag blue">ACID</span>
+        </div>
+      </div>
+
+      <div class="node blue" data-id="redis-cache" onclick="openPanel('redis-cache')">
+        <span class="node-click-hint">CLICK FOR DETAILS</span>
+        <span class="node-icon">⚡</span>
+        <div class="node-title">Redis Cache</div>
+        <div class="node-sub">60-second rolling window of all 500 sensors. Sorted sets per sensor. New clients get instant state on connect.</div>
+        <div class="node-tags">
+          <span class="tag blue">Sorted Sets</span>
+          <span class="tag teal">60s Window</span>
+          <span class="tag green">&lt;1ms Reads</span>
+        </div>
+      </div>
+
+      <div class="node purple" data-id="minio" onclick="openPanel('minio')">
+        <span class="node-click-hint">CLICK FOR DETAILS</span>
+        <span class="node-icon">📦</span>
+        <div class="node-title">MinIO — Parquet</div>
+        <div class="node-sub">Cold storage. Hourly flush from TimescaleDB to Parquet. On-premise, S3-compatible. Air-gapped deployment.</div>
+        <div class="node-tags">
+          <span class="tag purple">Parquet</span>
+          <span class="tag purple">On-Premise</span>
+          <span class="tag amber">Hourly Flush</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- LAYER 4: API -->
+  <div class="layer" id="layer-api">
+    <div class="layer-label">04 — Analytics API Layer</div>
+    <div class="nodes-row">
+
+      <div class="node teal" data-id="stream-analytics" onclick="openPanel('stream-analytics')">
+        <span class="node-click-hint">CLICK FOR DETAILS</span>
+        <span class="node-icon">📊</span>
+        <div class="node-title">Stream Analytics</div>
+        <div class="node-sub">Real-time mean, std dev, anomaly score computed per tick from in-memory state. No DB query needed.</div>
+        <div class="node-tags">
+          <span class="tag teal">Mean / Std Dev</span>
+          <span class="tag teal">Anomaly Score</span>
+        </div>
+      </div>
+
+      <div class="node blue" data-id="historical-api" onclick="openPanel('historical-api')">
+        <span class="node-click-hint">CLICK FOR DETAILS</span>
+        <span class="node-icon">📈</span>
+        <div class="node-title">Historical Query API</div>
+        <div class="node-sub">Trend queries, correlation, subsystem summaries. Routes to continuous aggregates for large windows. &lt;50ms response for 6-hour trends.</div>
+        <div class="node-tags">
+          <span class="tag blue">Trend API</span>
+          <span class="tag teal">Correlation</span>
+          <span class="tag green">&lt;50ms</span>
+        </div>
+      </div>
+
+      <div class="node amber" data-id="batch-writer" onclick="openPanel('batch-writer')">
+        <span class="node-click-hint">CLICK FOR DETAILS</span>
+        <span class="node-icon">💾</span>
+        <div class="node-title">Batch Writer</div>
+        <div class="node-sub">Buffers readings in-memory. Bulk inserts to TimescaleDB every 5 seconds using asyncpg executemany. Never blocks the simulator loop.</div>
+        <div class="node-tags">
+          <span class="tag amber">Every 5s Flush</span>
+          <span class="tag blue">Non-blocking</span>
+          <span class="tag teal">Bulk Insert</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- LAYER 5: FRONTEND -->
+  <div class="layer" id="layer-frontend">
+    <div class="layer-label">05 — Frontend Layer</div>
+    <div class="nodes-row">
+
+      <div class="node blue wide" data-id="react-dashboard" onclick="openPanel('react-dashboard')">
+        <span class="node-click-hint">CLICK FOR DETAILS</span>
+        <span class="node-icon">🖥️</span>
+        <div class="node-title">React Dashboard</div>
+        <div class="node-sub">Primary demo screen. Plotly.js bundled locally — works air-gapped. Live heatmap of 500 sensors, subsystem line charts, critical gauges, alert feed panel.</div>
+        <div class="node-tags">
+          <span class="tag blue">React 18</span>
+          <span class="tag teal">Plotly.js (local)</span>
+          <span class="tag amber">Vite</span>
+          <span class="tag green">Air-gap Safe</span>
+        </div>
+      </div>
+
+      <div class="node purple" data-id="flutter-app" onclick="openPanel('flutter-app')">
+        <span class="node-click-hint">CLICK FOR DETAILS</span>
+        <span class="node-icon">📱</span>
+        <div class="node-title">Flutter Companion</div>
+        <div class="node-sub">Mobile/tablet demo alongside the main screen. Subsystem status cards, live alerts, sensor sparklines, push notifications on critical fault.</div>
+        <div class="node-tags">
+          <span class="tag purple">Flutter</span>
+          <span class="tag purple">Android + Web</span>
+          <span class="tag amber">Push Notifications</span>
+        </div>
+      </div>
+
+      <div class="node red narrow" data-id="alert-panel" onclick="openPanel('alert-panel')">
+        <span class="node-click-hint">CLICK FOR DETAILS</span>
+        <span class="node-icon">🔔</span>
+        <div class="node-title">Alert Panel</div>
+        <div class="node-sub">Live fault feed. Both platforms. Acknowledge workflow.</div>
+        <div class="node-tags">
+          <span class="tag red">WS /alerts</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- FLOW LABELS -->
+  <div class="connector-labels" style="margin-top:24px;">
+    <span class="flow-label"><span class="arrow">→</span> Simulator publishes to Redis every 1s</span>
+    <span class="flow-label"><span class="arrow">→</span> FastAPI broadcasts via WebSocket</span>
+    <span class="flow-label"><span class="arrow">→</span> Batch writes to TimescaleDB every 5s</span>
+    <span class="flow-label"><span class="arrow">→</span> Parquet flush hourly to MinIO</span>
+  </div>
+
+</div><!-- canvas-wrap -->
+
+<!-- FOOTER -->
+<footer>
+  <p>BHEL Haridwar — Unit 5 Capability Demo · Architecture v1.0 · Click any component for details</p>
+  <div class="tech-pills">
+    <span class="tech-pill">Python 3.11</span>
+    <span class="tech-pill">FastAPI</span>
+    <span class="tech-pill">Redis 7</span>
+    <span class="tech-pill">TimescaleDB</span>
+    <span class="tech-pill">MinIO</span>
+    <span class="tech-pill">React 18</span>
+    <span class="tech-pill">Plotly.js</span>
+    <span class="tech-pill">Flutter</span>
+    <span class="tech-pill">Docker</span>
+  </div>
+</footer>
+
+<!-- OVERLAY -->
+<div id="overlay" onclick="closePanel()"></div>
+
+<!-- DETAIL PANEL -->
+<div id="detail-panel">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title" id="panel-title">Component</div>
+      <div class="panel-subtitle" id="panel-subtitle">Details</div>
+    </div>
+    <button class="panel-close" onclick="closePanel()">✕</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+</div>
+
+<script>
+// ── PANEL DATA ──────────────────────────────────────────────────────────────
+const panels = {
+
+  simulator: {
+    title: 'Python Sensor Simulator',
+    subtitle: 'Layer 1 — Data Generation',
+    body: `
+      <div class="panel-section">
+        <div class="panel-section-title">Purpose</div>
+        <div class="panel-desc">Generates 500 realistic sensor readings every second. Designed as a pluggable DataSource interface — the simulator is swapped for an OPC-UA or SCADA adapter in production with zero downstream changes.</div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Sensor Distribution</div>
+        <div class="spec-row"><span class="spec-key">Turbine (HP/LP)</span><span class="spec-val">120 sensors</span></div>
+        <div class="spec-row"><span class="spec-key">Boiler</span><span class="spec-val">100 sensors</span></div>
+        <div class="spec-row"><span class="spec-key">Generator</span><span class="spec-val">80 sensors</span></div>
+        <div class="spec-row"><span class="spec-key">Cooling System</span><span class="spec-val">80 sensors</span></div>
+        <div class="spec-row"><span class="spec-key">Transformer</span><span class="spec-val">60 sensors</span></div>
+        <div class="spec-row"><span class="spec-key">Auxiliary</span><span class="spec-val">60 sensors</span></div>
+        <div class="spec-row"><span class="spec-key">Tick Rate</span><span class="spec-val">1 second</span></div>
+        <div class="spec-row"><span class="spec-key">Noise Model</span><span class="spec-val">Gaussian per sensor</span></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Noise & Drift Model</div>
+        <div class="code-block"><span class="kw">def</span> tick(sensor):
+    value = sensor.current_value
+    value += gaussian_noise(amplitude=sensor.noise_amp)
+    value = slow_drift(value, sensor.baseline, rate=<span class="num">0.01</span>)
+    <span class="kw">if</span> sensor.in_fault_mode:
+        value = anomaly_ramp(value, sensor.fault_target)
+    <span class="kw">return</span> clamp(value, sensor.min, sensor.max * <span class="num">1.5</span>)</div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Why This Design</div>
+        <div class="why-box"><strong>Pluggable source interface</strong> means when BHEL asks "can this connect to our actual plant?" — the answer is yes. Replace SimulatorSource with SCADASource. The entire pipeline downstream is unchanged.</div>
+      </div>
+    `
+  },
+
+  anomaly: {
+    title: 'Anomaly Injection Engine',
+    subtitle: 'Layer 1 — Fault Simulation',
+    body: `
+      <div class="panel-section">
+        <div class="panel-section-title">Demo Scenarios</div>
+        <div class="spec-row"><span class="spec-key">Scenario 1</span><span class="spec-val">Turbine Bearing Overheat</span></div>
+        <div class="spec-row"><span class="spec-key">Scenario 2</span><span class="spec-val">Boiler Pressure Spike</span></div>
+        <div class="spec-row"><span class="spec-key">Scenario 3</span><span class="spec-val">Generator Frequency Drop</span></div>
+        <div class="spec-row"><span class="spec-key">Ramp Duration</span><span class="spec-val">~30 seconds to threshold</span></div>
+        <div class="spec-row"><span class="spec-key">Trigger Method</span><span class="spec-val">Single button click (no terminal)</span></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Fault Progression</div>
+        <div class="code-block"><span class="cmt"># Sensor crosses warning at 80% threshold</span>
+<span class="cmt"># Then crosses critical at 100% threshold</span>
+<span class="cmt"># Alert fires exactly once per event</span>
+
+T003: <span class="num">85°C</span> → <span class="num">96°C</span> → <span class="num">112°C</span> → <span class="num">127°C</span> ⚠ CRITICAL
+status: normal → warning → critical</div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">API</div>
+        <div class="code-block">POST /simulator/fault/{sensor_id}
+  body: {<span class="str">"target_multiplier"</span>: <span class="num">1.2</span>}
+
+DELETE /simulator/fault/{sensor_id}
+  → resolves, sensor ramps back to normal</div>
+      </div>
+    `
+  },
+
+  datasource: {
+    title: 'Pluggable Data Source Interface',
+    subtitle: 'Layer 1 — Production Bridge',
+    body: `
+      <div class="panel-section">
+        <div class="panel-section-title">Interface Design</div>
+        <div class="code-block"><span class="kw">class</span> DataSource:
+    <span class="kw">async def</span> get_readings(self)
+        -> list[SensorReading]: ...
+
+<span class="kw">class</span> SimulatorSource(DataSource):
+    <span class="cmt"># Demo — Gaussian noise + anomaly</span>
+
+<span class="kw">class</span> SCADASource(DataSource):
+    <span class="cmt"># Production — OPC-UA / Modbus</span></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Why This Matters</div>
+        <div class="why-box">When BHEL asks <strong>"can this connect to our actual plant sensors?"</strong> — the answer is yes. Swap SimulatorSource for SCADASource. The entire Redis → FastAPI → Dashboard pipeline is unchanged. This is the key architectural decision that makes the demo credible as a production path.</div>
+      </div>
+    `
+  },
+
+  'redis-pubsub': {
+    title: 'Redis Pub/Sub',
+    subtitle: 'Layer 2 — Message Fan-out',
+    body: `
+      <div class="panel-section">
+        <div class="panel-section-title">Channel Architecture</div>
+        <div class="spec-row"><span class="spec-key">subsystem:turbine</span><span class="spec-val">120 sensors</span></div>
+        <div class="spec-row"><span class="spec-key">subsystem:boiler</span><span class="spec-val">100 sensors</span></div>
+        <div class="spec-row"><span class="spec-key">subsystem:generator</span><span class="spec-val">80 sensors</span></div>
+        <div class="spec-row"><span class="spec-key">subsystem:cooling</span><span class="spec-val">80 sensors</span></div>
+        <div class="spec-row"><span class="spec-key">subsystem:transformer</span><span class="spec-val">60 sensors</span></div>
+        <div class="spec-row"><span class="spec-key">subsystem:auxiliary</span><span class="spec-val">60 sensors</span></div>
+        <div class="spec-row"><span class="spec-key">alerts</span><span class="spec-val">Alert events channel</span></div>
+        <div class="spec-row"><span class="spec-key">Messages/sec</span><span class="spec-val">6 (one per subsystem)</span></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Why Pub/Sub (not direct WebSocket)</div>
+        <div class="why-box">WebSocket connections are stateful — they live on a specific FastAPI instance. With multiple workers, User A on instance 1 never gets messages from User B on instance 2. <strong>Redis Pub/Sub is the message broker</strong> — all FastAPI instances subscribe, all clients get all messages regardless of which instance they connected to. This is the correct production architecture.</div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Message Format</div>
+        <div class="code-block">{
+  <span class="str">"subsystem"</span>: <span class="str">"turbine"</span>,
+  <span class="str">"timestamp"</span>: <span class="str">"2026-04-16T10:30:00Z"</span>,
+  <span class="str">"readings"</span>: [
+    {
+      <span class="str">"id"</span>: <span class="str">"T003"</span>,
+      <span class="str">"name"</span>: <span class="str">"HP Bearing 3 Temp"</span>,
+      <span class="str">"value"</span>: <span class="num">127.3</span>,
+      <span class="str">"unit"</span>: <span class="str">"°C"</span>,
+      <span class="str">"status"</span>: <span class="str">"critical"</span>,
+      <span class="str">"max_threshold"</span>: <span class="num">120</span>
+    }
+  ]
+}</div>
+      </div>
+    `
+  },
+
+  fastapi: {
+    title: 'FastAPI Backend',
+    subtitle: 'Layer 2 — Streaming & API Core',
+    body: `
+      <div class="panel-section">
+        <div class="panel-section-title">WebSocket Endpoints</div>
+        <div class="spec-row"><span class="spec-key">WS /ws/live</span><span class="spec-val">All sensor data stream</span></div>
+        <div class="spec-row"><span class="spec-key">WS /ws/alerts</span><span class="spec-val">Alert events only</span></div>
+        <div class="spec-row"><span class="spec-key">Ping/Pong</span><span class="spec-val">Every 30 seconds</span></div>
+        <div class="spec-row"><span class="spec-key">On Connect</span><span class="spec-val">60s history from Redis buffer</span></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">REST Endpoints</div>
+        <div class="code-block">GET  /data/sensors/current
+GET  /data/sensors/{id}/history?minutes=60
+GET  /data/subsystems/{name}/summary
+GET  /alerts/active
+POST /alerts/{id}/acknowledge
+POST /simulator/fault/{sensor_id}
+GET  /health</div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Key Design</div>
+        <div class="why-box"><strong>Connection Manager</strong> tracks all active WebSocket clients. On broadcast failure (client disconnected), silently removes connection without crashing. <strong>Redis Subscriber</strong> runs as a background asyncio task — reconnects automatically if Redis drops.</div>
+      </div>
+    `
+  },
+
+  'alert-engine': {
+    title: 'Alert Engine',
+    subtitle: 'Layer 2 — Threshold Detection',
+    body: `
+      <div class="panel-section">
+        <div class="panel-section-title">Alert Logic</div>
+        <div class="spec-row"><span class="spec-key">Warning threshold</span><span class="spec-val">80% of max_threshold</span></div>
+        <div class="spec-row"><span class="spec-key">Critical threshold</span><span class="spec-val">100% of max_threshold</span></div>
+        <div class="spec-row"><span class="spec-key">Deduplication</span><span class="spec-val">One alert per sensor event</span></div>
+        <div class="spec-row"><span class="spec-key">Auto-resolve</span><span class="spec-val">When sensor returns normal</span></div>
+        <div class="spec-row"><span class="spec-key">Processing time</span><span class="spec-val">&lt;50ms for 500 sensors</span></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Deduplication Design</div>
+        <div class="code-block"><span class="cmt"># active_alerts: dict[sensor_id → Alert]</span>
+
+<span class="kw">if</span> status == CRITICAL <span class="kw">and</span> not in active_alerts:
+    fire_alert()        <span class="cmt"># INSERT to DB once</span>
+    publish_to_redis()  <span class="cmt"># Notify all clients</span>
+    active_alerts[id] = alert
+
+<span class="kw">elif</span> status == NORMAL <span class="kw">and</span> id in active_alerts:
+    resolve_alert()     <span class="cmt"># Mark acknowledged</span>
+    del active_alerts[id]</div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Critical Design Note</div>
+        <div class="why-box">Alert engine processes 500 readings per tick. If it wrote to DB on every reading, that's <strong>500 DB writes/second just for alerts</strong>. Deduplication ensures at most one INSERT per alert event — typically 2-3 alert inserts per demo, not thousands.</div>
+      </div>
+    `
+  },
+
+  timescaledb: {
+    title: 'TimescaleDB',
+    subtitle: 'Layer 3 — Time-Series Storage',
+    body: `
+      <div class="panel-section">
+        <div class="panel-section-title">Schema</div>
+        <div class="code-block"><span class="kw">CREATE TABLE</span> sensors (
+  id          VARCHAR PRIMARY KEY,
+  name        TEXT,
+  subsystem   TEXT,
+  unit        TEXT,
+  min_threshold FLOAT8,
+  max_threshold FLOAT8
+);
+
+<span class="kw">CREATE TABLE</span> readings (
+  time       TIMESTAMPTZ <span class="kw">NOT NULL</span>,
+  sensor_id  VARCHAR REFERENCES sensors,
+  value      FLOAT8
+);
+
+<span class="cmt">-- Hypertable: auto-partitions by time</span>
+SELECT create_hypertable(<span class="str">'readings'</span>, <span class="str">'time'</span>);</div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Continuous Aggregate</div>
+        <div class="code-block"><span class="kw">CREATE MATERIALIZED VIEW</span> readings_1min
+WITH (timescaledb.continuous) <span class="kw">AS</span>
+<span class="kw">SELECT</span>
+  time_bucket(<span class="str">'1 minute'</span>, time) AS bucket,
+  sensor_id,
+  avg(value)    AS mean,
+  min(value)    AS min_val,
+  max(value)    AS max_val,
+  stddev(value) AS std_dev
+<span class="kw">FROM</span> readings
+<span class="kw">GROUP BY</span> bucket, sensor_id;</div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Performance at This Scale</div>
+        <div class="spec-row"><span class="spec-key">Write rate</span><span class="spec-val">500 rows/sec</span></div>
+        <div class="spec-row"><span class="spec-key">Batch strategy</span><span class="spec-val">2500 rows every 5s</span></div>
+        <div class="spec-row"><span class="spec-key">TimescaleDB capacity</span><span class="spec-val">&gt;1M rows/sec</span></div>
+        <div class="spec-row"><span class="spec-key">Utilisation</span><span class="spec-val">&lt;0.05% of capacity</span></div>
+        <div class="spec-row"><span class="spec-key">6-hour trend query</span><span class="spec-val">&lt;50ms (via aggregate)</span></div>
+        <div class="spec-row"><span class="spec-key">JOIN support</span><span class="spec-val">Full — sensors ⟕ readings</span></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">vs InfluxDB</div>
+        <div class="why-box"><strong>No cardinality problem</strong> — sensor_id is a foreign key, not a tag. <strong>Full SQL JOINs</strong> — sensors table + readings table queried together trivially. <strong>Standard PostgreSQL ops</strong> — pg_dump, streaming replication, every BI tool works out of the box. InfluxDB write throughput advantage only materialises above 500,000 writes/sec — irrelevant at this scale.</div>
+      </div>
+    `
+  },
+
+  'redis-cache': {
+    title: 'Redis — Rolling Cache',
+    subtitle: 'Layer 3 — Hot Data Buffer',
+    body: `
+      <div class="panel-section">
+        <div class="panel-section-title">Data Structure</div>
+        <div class="code-block"><span class="cmt"># Sorted set per sensor, scored by timestamp</span>
+ZADD sensor:T003 {timestamp} {json_reading}
+
+<span class="cmt"># Get last 60 seconds for one sensor</span>
+ZRANGEBYSCORE sensor:T003 
+  (NOW - 60s) NOW
+
+<span class="cmt"># On new WebSocket client connect:</span>
+<span class="cmt"># Fetch all 500 sensors × 60 readings</span>
+<span class="cmt"># → client is never blank on join</span></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Specs</div>
+        <div class="spec-row"><span class="spec-key">Window</span><span class="spec-val">60 seconds rolling</span></div>
+        <div class="spec-row"><span class="spec-key">Keys</span><span class="spec-val">500 sorted sets</span></div>
+        <div class="spec-row"><span class="spec-key">Read latency</span><span class="spec-val">&lt;1ms per sensor</span></div>
+        <div class="spec-row"><span class="spec-key">Purpose</span><span class="spec-val">New client catchup + live charts</span></div>
+      </div>
+    `
+  },
+
+  minio: {
+    title: 'MinIO — Parquet Cold Storage',
+    subtitle: 'Layer 3 — Historical Archive',
+    body: `
+      <div class="panel-section">
+        <div class="panel-section-title">Storage Strategy</div>
+        <div class="spec-row"><span class="spec-key">Format</span><span class="spec-val">Apache Parquet (columnar)</span></div>
+        <div class="spec-row"><span class="spec-key">Flush frequency</span><span class="spec-val">Hourly from TimescaleDB</span></div>
+        <div class="spec-row"><span class="spec-key">Deployment</span><span class="spec-val">On-premise, S3-compatible</span></div>
+        <div class="spec-row"><span class="spec-key">Air-gap</span><span class="spec-val">No external dependency</span></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Path Structure</div>
+        <div class="code-block">bhel-plant/
+  readings/
+    subsystem=turbine/
+      year=2026/month=04/day=16/
+        hour=10.parquet
+    subsystem=boiler/
+      ...</div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Why MinIO</div>
+        <div class="why-box">S3-compatible API means any analytics tool that reads S3 reads this directly. Runs entirely within BHEL's network. <strong>No data leaves the plant infrastructure.</strong> Same pattern used in DataGlow — familiar operational footprint.</div>
+      </div>
+    `
+  },
+
+  'stream-analytics': {
+    title: 'Stream Analytics',
+    subtitle: 'Layer 4 — Real-time Computation',
+    body: `
+      <div class="panel-section">
+        <div class="panel-section-title">Computed Per Tick (in-memory)</div>
+        <div class="spec-row"><span class="spec-key">Rolling mean</span><span class="spec-val">Last 60 readings per sensor</span></div>
+        <div class="spec-row"><span class="spec-key">Std deviation</span><span class="spec-val">Running Welford algorithm</span></div>
+        <div class="spec-row"><span class="spec-key">Anomaly score</span><span class="spec-val">(value - mean) / std_dev</span></div>
+        <div class="spec-row"><span class="spec-key">Threshold %</span><span class="spec-val">value / max_threshold × 100</span></div>
+        <div class="spec-row"><span class="spec-key">Subsystem summary</span><span class="spec-val">Normal / Warning / Critical counts</span></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Design Note</div>
+        <div class="why-box">All stream analytics run on <strong>in-memory state</strong> — no DB query per tick. The simulator maintains current values for all 500 sensors in a Python dict. Analytics are derived from that dict in microseconds. DB is only hit for historical queries.</div>
+      </div>
+    `
+  },
+
+  'historical-api': {
+    title: 'Historical Query API',
+    subtitle: 'Layer 4 — Analytics Endpoints',
+    body: `
+      <div class="panel-section">
+        <div class="panel-section-title">Query Routing Logic</div>
+        <div class="code-block"><span class="kw">if</span> minutes <= <span class="num">60</span>:
+    <span class="cmt"># Query raw readings table</span>
+    query readings WHERE time > NOW() - interval
+<span class="kw">else</span>:
+    <span class="cmt"># Query pre-computed 1-min aggregate</span>
+    query readings_1min WHERE bucket > ...</div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Key Endpoints</div>
+        <div class="spec-row"><span class="spec-key">Sensor history</span><span class="spec-val">/data/sensors/{id}/history</span></div>
+        <div class="spec-row"><span class="spec-key">Subsystem summary</span><span class="spec-val">/data/subsystems/{name}/summary</span></div>
+        <div class="spec-row"><span class="spec-key">All current</span><span class="spec-val">/data/sensors/current (&lt;100ms)</span></div>
+        <div class="spec-row"><span class="spec-key">6-hour trend</span><span class="spec-val">&lt;50ms via continuous aggregate</span></div>
+      </div>
+    `
+  },
+
+  'batch-writer': {
+    title: 'Batch Writer',
+    subtitle: 'Layer 4 — Persistence Manager',
+    body: `
+      <div class="panel-section">
+        <div class="panel-section-title">Write Pattern</div>
+        <div class="code-block"><span class="cmt"># Simulator tick — never blocks</span>
+batch_writer.collect(readings)  <span class="cmt"># O(1)</span>
+
+<span class="cmt"># Background task — every 5 seconds</span>
+<span class="kw">async def</span> flush():
+    rows = deque.copy(); deque.clear()
+    <span class="kw">await</span> conn.executemany(
+        INSERT INTO readings VALUES ($1,$2,$3),
+        [(r.time, r.sensor_id, r.value) 
+         <span class="kw">for</span> r <span class="kw">in</span> rows]
+    )</div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Numbers</div>
+        <div class="spec-row"><span class="spec-key">Collect rate</span><span class="spec-val">500 readings/sec</span></div>
+        <div class="spec-row"><span class="spec-key">Flush interval</span><span class="spec-val">Every 5 seconds</span></div>
+        <div class="spec-row"><span class="spec-key">Rows per flush</span><span class="spec-val">~2,500</span></div>
+        <div class="spec-row"><span class="spec-key">DB impact</span><span class="spec-val">1 bulk insert / 5 seconds</span></div>
+        <div class="spec-row"><span class="spec-key">Blocking</span><span class="spec-val">Zero — asyncio background task</span></div>
+      </div>
+    `
+  },
+
+  'react-dashboard': {
+    title: 'React Dashboard',
+    subtitle: 'Layer 5 — Primary Demo Screen',
+    body: `
+      <div class="panel-section">
+        <div class="panel-section-title">Key Charts</div>
+        <div class="spec-row"><span class="spec-key">500-sensor heatmap</span><span class="spec-val">Plotly heatmap, green→amber→red</span></div>
+        <div class="spec-row"><span class="spec-key">Subsystem line charts</span><span class="spec-val">60s rolling window per sensor</span></div>
+        <div class="spec-row"><span class="spec-key">Critical gauges</span><span class="spec-val">RPM, Frequency, Steam Pressure</span></div>
+        <div class="spec-row"><span class="spec-key">Alert feed</span><span class="spec-val">Right panel, always visible</span></div>
+        <div class="spec-row"><span class="spec-key">Demo controls</span><span class="spec-val">3 named fault scenarios</span></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">WebSocket Hook</div>
+        <div class="code-block"><span class="kw">const</span> { sensorReadings, 
+         subsystemStatus, 
+         connectionStatus } 
+  = useSensorStream()
+
+<span class="cmt">// Reconnects with exponential backoff</span>
+<span class="cmt">// On reconnect: fetches /sensors/current</span>
+<span class="cmt">// Never blank — 60s buffer on connect</span></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Critical Requirements</div>
+        <div class="why-box"><strong>Plotly.js bundled locally</strong> — no CDN calls. Dashboard works in an air-gapped BHEL environment. Uses <strong>Plotly.react()</strong> (update) not Plotly.newPlot() (full re-render) — no chart flickering every second. Heatmap updates colorscale data only.</div>
+      </div>
+    `
+  },
+
+  'flutter-app': {
+    title: 'Flutter Companion App',
+    subtitle: 'Layer 5 — Mobile / Tablet Demo',
+    body: `
+      <div class="panel-section">
+        <div class="panel-section-title">Screens</div>
+        <div class="spec-row"><span class="spec-key">Overview</span><span class="spec-val">6 subsystem status cards</span></div>
+        <div class="spec-row"><span class="spec-key">Subsystem Detail</span><span class="spec-val">Sensor list + sparklines</span></div>
+        <div class="spec-row"><span class="spec-key">Alerts</span><span class="spec-val">Active faults, acknowledge</span></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Demo Value</div>
+        <div class="why-box">In the meeting room: <strong>laptop shows React dashboard, phone shows Flutter app</strong> — both receiving identical live data. BHEL sees multi-platform capability demonstrated simultaneously. When fault triggers, the phone shows a push notification. That moment lands hard.</div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Tech</div>
+        <div class="spec-row"><span class="spec-key">State</span><span class="spec-val">Riverpod</span></div>
+        <div class="spec-row"><span class="spec-key">Charts</span><span class="spec-val">fl_chart sparklines</span></div>
+        <div class="spec-row"><span class="spec-key">WebSocket</span><span class="spec-val">web_socket_channel</span></div>
+        <div class="spec-row"><span class="spec-key">Notifications</span><span class="spec-val">flutter_local_notifications</span></div>
+        <div class="spec-row"><span class="spec-key">Targets</span><span class="spec-val">Android + Web</span></div>
+      </div>
+    `
+  },
+
+  'alert-panel': {
+    title: 'Alert Panel',
+    subtitle: 'Layer 5 — Live Fault Feed',
+    body: `
+      <div class="panel-section">
+        <div class="panel-section-title">Alert Card Info</div>
+        <div class="spec-row"><span class="spec-key">Severity badge</span><span class="spec-val">Warning (amber) / Critical (red)</span></div>
+        <div class="spec-row"><span class="spec-key">Sensor info</span><span class="spec-val">Name, subsystem, ID</span></div>
+        <div class="spec-row"><span class="spec-key">Values</span><span class="spec-val">Current value vs threshold</span></div>
+        <div class="spec-row"><span class="spec-key">Elapsed</span><span class="spec-val">"2 min ago" — live updating</span></div>
+        <div class="spec-row"><span class="spec-key">Action</span><span class="spec-val">Acknowledge button</span></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">WebSocket Channel</div>
+        <div class="code-block">WS /ws/alerts
+
+<span class="cmt"># On connect: all active unacknowledged</span>
+<span class="cmt"># alerts sent immediately</span>
+<span class="cmt"># On fault fire: pushed within 2 seconds</span>
+<span class="cmt"># On resolve: pushed as alert_resolved event</span></div>
+      </div>
+    `
+  }
+
+};
+
+// ── PANEL LOGIC ──────────────────────────────────────────────────────────────
+let activeNode = null;
+
+function openPanel(id) {
+  const data = panels[id];
+  if (!data) return;
+
+  if (activeNode) activeNode.classList.remove('active');
+  activeNode = document.querySelector(`[data-id="${id}"]`);
+  if (activeNode) activeNode.classList.add('active');
+
+  document.getElementById('panel-title').textContent = data.title;
+  document.getElementById('panel-subtitle').textContent = data.subtitle;
+  document.getElementById('panel-body').innerHTML = data.body;
+  document.getElementById('detail-panel').classList.add('open');
+  document.getElementById('overlay').classList.add('show');
+}
+
+function closePanel() {
+  document.getElementById('detail-panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('show');
+  if (activeNode) { activeNode.classList.remove('active'); activeNode = null; }
+}
+
+// ── PARTICLE ANIMATION ───────────────────────────────────────────────────────
+const canvas = document.getElementById('flow');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  const wrap = document.getElementById('canvas-wrap');
+  canvas.width = wrap.offsetWidth;
+  canvas.height = wrap.offsetHeight;
+}
+
+window.addEventListener('resize', () => { resize(); });
+setTimeout(resize, 100);
+
+// Get node center positions relative to canvas-wrap
+function getNodeCenter(dataId) {
+  const el = document.querySelector(`[data-id="${dataId}"]`);
+  const wrap = document.getElementById('canvas-wrap');
+  if (!el || !wrap) return null;
+  const er = el.getBoundingClientRect();
+  const wr = wrap.getBoundingClientRect();
+  return {
+    x: er.left - wr.left + er.width / 2,
+    y: er.top - wr.top + er.height / 2
+  };
+}
+
+// Define flow paths
+const flows = [
+  { from: 'simulator',      to: 'redis-pubsub',    color: '#00b4ff', speed: 1.8 },
+  { from: 'anomaly',        to: 'alert-engine',    color: '#ff4444', speed: 2.2 },
+  { from: 'redis-pubsub',   to: 'fastapi',         color: '#00b4ff', speed: 2.0 },
+  { from: 'fastapi',        to: 'batch-writer',    color: '#00ffcc', speed: 1.4 },
+  { from: 'fastapi',        to: 'redis-cache',     color: '#00b4ff', speed: 2.5 },
+  { from: 'alert-engine',   to: 'timescaledb',     color: '#ff4444', speed: 1.2 },
+  { from: 'batch-writer',   to: 'timescaledb',     color: '#00ffcc', speed: 1.0 },
+  { from: 'fastapi',        to: 'react-dashboard', color: '#00b4ff', speed: 2.8 },
+  { from: 'fastapi',        to: 'flutter-app',     color: '#9b6dff', speed: 2.8 },
+  { from: 'fastapi',        to: 'alert-panel',     color: '#ff4444', speed: 2.0 },
+  { from: 'timescaledb',    to: 'historical-api',  color: '#00ffcc', speed: 0.9 },
+  { from: 'redis-cache',    to: 'stream-analytics',color: '#00b4ff', speed: 2.2 },
+  { from: 'timescaledb',    to: 'minio',           color: '#9b6dff', speed: 0.6 },
+];
+
+// Particles
+const particles = [];
+
+class Particle {
+  constructor(flow) {
+    this.flow = flow;
+    this.progress = Math.random();
+    this.speed = flow.speed * (0.8 + Math.random() * 0.4);
+    this.size = 2 + Math.random() * 2;
+    this.alpha = 0.6 + Math.random() * 0.4;
+  }
+
+  update(dt) {
+    this.progress += dt * this.speed * 0.0004;
+    if (this.progress > 1) this.progress -= 1;
+  }
+
+  draw() {
+    const from = getNodeCenter(this.flow.from);
+    const to = getNodeCenter(this.flow.to);
+    if (!from || !to) return;
+
+    const x = from.x + (to.x - from.x) * this.progress;
+    const y = from.y + (to.y - from.y) * this.progress;
+
+    // Draw the path line (faint)
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.strokeStyle = this.flow.color + '18';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Draw particle
+    const fade = Math.sin(this.progress * Math.PI);
+    ctx.beginPath();
+    ctx.arc(x, y, this.size * fade, 0, Math.PI * 2);
+    ctx.fillStyle = this.flow.color + Math.floor(this.alpha * fade * 255).toString(16).padStart(2,'0');
+    ctx.fill();
+
+    // Glow
+    ctx.beginPath();
+    ctx.arc(x, y, this.size * fade * 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = this.flow.color + '22';
+    ctx.fill();
+  }
+}
+
+// Init particles
+flows.forEach(flow => {
+  const count = Math.floor(flow.speed * 1.5) + 2;
+  for (let i = 0; i < count; i++) {
+    particles.push(new Particle(flow));
+  }
+});
+
+let last = performance.now();
+
+function animate(now) {
+  const dt = now - last;
+  last = now;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  particles.forEach(p => {
+    p.update(dt);
+    p.draw();
+  });
+
+  requestAnimationFrame(animate);
+}
+
+requestAnimationFrame(animate);
+
+// ── LIVE COUNTER ANIMATION ───────────────────────────────────────────────────
+const rateEl = document.getElementById('rate-counter');
+let baseRate = 500;
+setInterval(() => {
+  const jitter = Math.floor((Math.random() - 0.5) * 20);
+  rateEl.textContent = baseRate + jitter;
+}, 800);
+
+// Keyboard close
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closePanel();
+});
+</script>
+</body>
+</html>

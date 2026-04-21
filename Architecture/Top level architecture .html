@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BHEL — Real-Time Sensor Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+
+body {
+  background:#050a0f;
+  font-family:'Rajdhani',sans-serif;
+  min-height:100vh;
+  overflow-x:hidden;
+  color:#c8f0ff;
+}
+
+body::after {
+  content:'';
+  position:fixed;inset:0;
+  background:repeating-linear-gradient(
+    0deg,
+    transparent,transparent 2px,
+    rgba(0,0,0,0.04) 2px,rgba(0,0,0,0.04) 4px
+  );
+  pointer-events:none;z-index:1000;
+}
+
+body::before {
+  content:'';
+  position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(0,200,255,0.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,200,255,0.03) 1px,transparent 1px);
+  background-size:50px 50px;
+  pointer-events:none;
+}
+
+header {
+  position:relative;z-index:10;
+  padding:20px 48px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid rgba(0,200,255,0.12);
+}
+
+.h-left { display:flex;align-items:center;gap:16px; }
+
+.h-badge {
+  width:44px;height:44px;
+  border:2px solid #00c8ff;
+  border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Share Tech Mono',monospace;
+  font-size:11px;color:#00c8ff;
+  box-shadow:0 0 16px rgba(0,200,255,0.4),inset 0 0 8px rgba(0,200,255,0.1);
+  animation:hbadge 3s ease-in-out infinite;
+}
+@keyframes hbadge{0%,100%{box-shadow:0 0 16px rgba(0,200,255,0.4),inset 0 0 8px rgba(0,200,255,0.1);}50%{box-shadow:0 0 28px rgba(0,200,255,0.7),inset 0 0 16px rgba(0,200,255,0.2);}}
+
+.h-title { font-family:'Share Tech Mono',monospace;font-size:14px;letter-spacing:2px;color:#fff; }
+.h-sub { font-size:11px;color:rgba(200,240,255,0.4);letter-spacing:1px;margin-top:2px; }
+
+.h-stats { display:flex;gap:28px; }
+.stat { text-align:center; }
+.sv { font-family:'Share Tech Mono',monospace;font-size:22px;color:#00ffaa;text-shadow:0 0 10px rgba(0,255,170,0.5); }
+.sl { font-size:10px;color:rgba(200,240,255,0.4);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px; }
+
+.live { display:flex;align-items:center;gap:8px;font-size:11px;color:#00ff88;letter-spacing:1px;font-family:'Share Tech Mono',monospace; }
+.live-dot { width:8px;height:8px;border-radius:50%;background:#00ff88;box-shadow:0 0 8px #00ff88;animation:ld 1.2s ease-in-out infinite; }
+@keyframes ld{0%,100%{opacity:1;}50%{opacity:0.2;}}
+
+.legend {
+  display:flex;gap:20px;align-items:center;
+  padding:10px 48px;
+  border-bottom:1px solid rgba(0,200,255,0.08);
+  flex-wrap:wrap;
+}
+.leg-item { display:flex;align-items:center;gap:7px;font-size:11px;color:rgba(200,240,255,0.5);letter-spacing:0.5px; }
+.leg-dot { width:7px;height:7px;border-radius:50%;flex-shrink:0; }
+
+.svg-wrap {
+  position:relative;
+  padding:20px 20px 10px;
+  display:flex;justify-content:center;
+}
+
+svg#arch {
+  width:100%;max-width:1040px;
+  height:auto;
+  filter:drop-shadow(0 0 40px rgba(0,150,200,0.08));
+}
+
+.node-group { cursor:pointer; }
+.node-group:hover .node-rect { filter:brightness(1.3); }
+.node-group:hover .node-glow { opacity:1; }
+
+.node-rect {
+  rx:12;
+  transition:filter 0.2s;
+  stroke-width:1.5;
+}
+
+.node-glow { opacity:0;transition:opacity 0.3s; }
+
+#tip {
+  position:fixed;
+  background:rgba(5,15,25,0.97);
+  border:1px solid rgba(0,200,255,0.3);
+  border-radius:12px;
+  padding:20px;
+  width:300px;
+  z-index:500;
+  pointer-events:none;
+  opacity:0;
+  transform:translateY(8px);
+  transition:opacity 0.2s,transform 0.2s;
+  backdrop-filter:blur(12px);
+  box-shadow:0 8px 32px rgba(0,0,0,0.6),0 0 0 1px rgba(0,200,255,0.1);
+}
+#tip.show { opacity:1;transform:translateY(0); }
+.tip-title { font-family:'Share Tech Mono',monospace;font-size:13px;color:#fff;letter-spacing:1px;margin-bottom:4px; }
+.tip-badge { display:inline-block;font-size:9px;padding:2px 8px;border-radius:3px;letter-spacing:1px;margin-bottom:12px;font-family:'Share Tech Mono',monospace; }
+.tip-desc { font-size:12px;line-height:1.7;color:rgba(200,240,255,0.7);margin-bottom:12px; }
+.tip-row { display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(0,200,255,0.07);font-size:11px; }
+.tip-key { color:rgba(200,240,255,0.4); }
+.tip-val { color:#00ffaa;font-family:'Share Tech Mono',monospace; }
+
+.info-bar {
+  display:flex;gap:0;
+  margin:0 20px 20px;
+  border:1px solid rgba(0,200,255,0.1);
+  border-radius:10px;
+  overflow:hidden;
+  max-width:1040px;
+  margin-left:auto;margin-right:auto;
+}
+.info-card {
+  flex:1;
+  padding:14px 18px;
+  border-right:1px solid rgba(0,200,255,0.08);
+  cursor:pointer;
+  transition:background 0.2s;
+}
+.info-card:last-child{border-right:none;}
+.info-card:hover{background:rgba(0,200,255,0.04);}
+.ic-label{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(200,240,255,0.35);margin-bottom:6px;}
+.ic-val{font-family:'Share Tech Mono',monospace;font-size:16px;}
+.ic-val.cyan{color:#00c8ff;text-shadow:0 0 8px rgba(0,200,255,0.5);}
+.ic-val.green{color:#00ffaa;text-shadow:0 0 8px rgba(0,255,170,0.4);}
+.ic-val.amber{color:#ffb300;text-shadow:0 0 8px rgba(255,179,0,0.4);}
+.ic-val.red{color:#ff4444;text-shadow:0 0 8px rgba(255,68,68,0.4);}
+.ic-sub{font-size:10px;color:rgba(200,240,255,0.3);margin-top:3px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="h-left">
+    <div class="h-badge">BHEL</div>
+    <div>
+      <div class="h-title">REAL-TIME SENSOR ARCHITECTURE</div>
+      
+    </div>
+  </div>
+  <div class="h-stats">
+    <div class="stat"><div class="sv">500</div><div class="sl">Sensors</div></div>
+    <div class="stat"><div class="sv" id="pps">500</div><div class="sl">Rows/sec</div></div>
+    <div class="stat"><div class="sv">1s</div><div class="sl">Tick Rate</div></div>
+  </div>
+  <div class="live"><div class="live-dot"></div>DATA FLOWING</div>
+</header>
+
+<div class="legend">
+  <div class="leg-item"><div class="leg-dot" style="background:#00c8ff;box-shadow:0 0 6px #00c8ff;"></div>Real-time stream (WebSocket / Pub-Sub)</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#ffb300;box-shadow:0 0 6px #ffb300;"></div>Batch persistence (5 sec flush)</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#ff4444;box-shadow:0 0 6px #ff4444;"></div>Alert flow (threshold breach)</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#00ffaa;box-shadow:0 0 6px #00ffaa;"></div>Historical query / stats (60 min)</div>
+  <div class="leg-item" style="margin-left:auto;color:rgba(200,240,255,0.3);font-size:10px;font-family:'Share Tech Mono',monospace;">CLICK ANY NODE FOR DETAILS</div>
+</div>
+
+<!-- MAIN DIAGRAM -->
+<div class="svg-wrap">
+<svg id="arch" viewBox="0 0 1000 740" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <filter id="glow-cyan" x="-50%" y="-50%" width="200%" height="200%">
+    <feGaussianBlur stdDeviation="4" result="blur"/>
+    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="glow-amber" x="-50%" y="-50%" width="200%" height="200%">
+    <feGaussianBlur stdDeviation="4" result="blur"/>
+    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="glow-red" x="-50%" y="-50%" width="200%" height="200%">
+    <feGaussianBlur stdDeviation="3" result="blur"/>
+    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="glow-green" x="-50%" y="-50%" width="200%" height="200%">
+    <feGaussianBlur stdDeviation="4" result="blur"/>
+    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="node-blur" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="8"/>
+  </filter>
+
+  <!-- Arrowheads -->
+  <marker id="arr-cyan" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M1 1L9 5L1 9" fill="none" stroke="#00c8ff" stroke-width="2" stroke-linecap="round"/>
+  </marker>
+  <marker id="arr-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M1 1L9 5L1 9" fill="none" stroke="#ffb300" stroke-width="2" stroke-linecap="round"/>
+  </marker>
+  <marker id="arr-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M1 1L9 5L1 9" fill="none" stroke="#ff4444" stroke-width="2" stroke-linecap="round"/>
+  </marker>
+  <marker id="arr-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M1 1L9 5L1 9" fill="none" stroke="#00ffaa" stroke-width="2" stroke-linecap="round"/>
+  </marker>
+</defs>
+
+<!-- ═══════════════════════ LAYOUT (matching sketch) ═══════════════════════
+  Simulator          (top center)         x=350–650  y=30–125
+  Redis              (mid left)           x=80–280   y=230–305
+  BatchWriter        (mid right)          x=720–920  y=230–305
+  FastAPI            (lower left)         x=80–300   y=400–485
+  AlertEngine        (lower center)       x=390–610  y=400–485
+  TimescaleDB        (lower right)        x=720–930  y=400–510
+  UI Dashboard       (bottom left)        x=80–300   y=580–665
+  Alert Panel        (bottom center)      x=390–620  y=580–665
+════════════════════════════════════════════════════════════════════════════ -->
+
+<!-- ═══════════════════════════════════════════════════════════ PATHS ══ -->
+
+<!-- P1: Simulator → Redis (left diagonal) -->
+<path id="p-sim-redis"
+  d="M 400 125 C 330 165 260 200 215 230"
+  fill="none" stroke="#00c8ff" stroke-width="1.5" stroke-opacity="0.25"
+  marker-end="url(#arr-cyan)"/>
+
+<!-- P2: Simulator → BatchWriter (right diagonal) -->
+<path id="p-sim-batch"
+  d="M 600 125 C 670 165 740 200 780 230"
+  fill="none" stroke="#ffb300" stroke-width="1.5" stroke-opacity="0.25"
+  marker-end="url(#arr-amber)"/>
+
+<!-- P3: Redis → FastAPI (straight down) -->
+<path id="p-redis-fastapi"
+  d="M 180 305 L 180 400"
+  fill="none" stroke="#00c8ff" stroke-width="1.5" stroke-opacity="0.25"
+  marker-end="url(#arr-cyan)"/>
+
+<!-- P4: BatchWriter → TimescaleDB (straight down, 5 sec dashed) -->
+<path id="p-batch-ts"
+  d="M 820 305 L 820 400"
+  fill="none" stroke="#ffb300" stroke-width="1.5" stroke-opacity="0.25"
+  marker-end="url(#arr-amber)" stroke-dasharray="6 3"/>
+
+<!-- P5: TimescaleDB → AlertEngine (real-time feed, left arrow) -->
+<!-- <path id="p-ts-alert"
+  d="M 720 448 L 610 448"
+  fill="none" stroke="#00ffaa" stroke-width="1.5" stroke-opacity="0.25"
+  marker-end="url(#arr-green)"/> -->
+
+  <path id="p-batch-alert"
+  d="M 820 305 C 820 350 620 370 610 400"
+  fill="none" stroke="#ffb300" stroke-width="1.5" stroke-opacity="0.25"
+  marker-end="url(#arr-amber)"/>
+
+<!-- P6: AlertEngine → FastAPI (left arrow) -->
+<path id="p-alert-fastapi"
+  d="M 390 448 L 300 448"
+  fill="none" stroke="#ff4444" stroke-width="1.5" stroke-opacity="0.25"
+  marker-end="url(#arr-red)"/>
+
+<!-- P7: TimescaleDB → FastAPI (60 min stats query, long diagonal arc) -->
+<path id="p-ts-fastapi-hist"
+  d="M 740 415 C 640 370 420 370 300 440"
+  fill="none" stroke="#00ffaa" stroke-width="1.5" stroke-opacity="0.2"
+  stroke-dasharray="8 4"
+  marker-end="url(#arr-green)"/>
+
+<!-- P8: FastAPI → UI Dashboard (straight down) -->
+<path id="p-fastapi-ui"
+  d="M 180 485 L 180 580"
+  fill="none" stroke="#00c8ff" stroke-width="1.5" stroke-opacity="0.25"
+  marker-end="url(#arr-cyan)"/>
+
+<!-- P9: AlertEngine → AlertPanel (straight down) -->
+<path id="p-alert-panel"
+  d="M 500 485 L 500 580"
+  fill="none" stroke="#ff4444" stroke-width="1.5" stroke-opacity="0.25"
+  marker-end="url(#arr-red)"/>
+
+<!-- P10: UI Dashboard → AlertPanel (right arrow) -->
+<path id="p-ui-alertpanel"
+  d="M 300 622 L 390 622"
+  fill="none" stroke="#00c8ff" stroke-width="1.5" stroke-opacity="0.25"
+  marker-end="url(#arr-cyan)"/>
+
+<!-- P11: AlertPanel → TimescaleDB (diagonal up-right arc) -->
+<path id="p-alertpanel-ts"
+  d="M 620 600 C 680 560 720 530 800 510"
+  fill="none" stroke="#ff4444" stroke-width="1.5" stroke-opacity="0.2"
+  stroke-dasharray="5 3"
+  marker-end="url(#arr-amber)"/>
+
+<!-- LABELS -->
+<text x="693" y="295" fill="#ffb300" font-size="11" font-family="'Share Tech Mono',monospace" opacity="0.7" text-anchor="middle">5 sec flush</text>
+<text x="750" y="368" fill="#ffb300" font-size="11" font-family="'Share Tech Mono',monospace" opacity="0.7" text-anchor="middle">Real time</text>
+<!-- <text x="660" y="438" fill="#00ffaa" font-size="11" font-family="'Share Tech Mono',monospace" opacity="0.7" text-anchor="middle">Real time</text> -->
+<text x="530" y="370" fill="#00ffaa" font-size="10" font-family="'Share Tech Mono',monospace" opacity="0.65" text-anchor="middle">60 min stats (min,max,mean) query</text>
+
+<!-- ═══════════════════════════════════════════════════════════ NODES ══ -->
+
+<!-- SIMULATOR NODE — top center -->
+<g class="node-group" data-id="simulator" onclick="showTip(event,'simulator')">
+  <rect x="350" y="30" width="300" height="95" rx="14" fill="#00c8ff" opacity="0.04" filter="url(#node-blur)" class="node-glow"/>
+  <rect x="350" y="30" width="300" height="95" rx="12" fill="#071520" stroke="#00c8ff" stroke-width="1.5" class="node-rect"/>
+  <rect x="350" y="30" width="300" height="3" rx="1.5" fill="#00c8ff" opacity="0.6"/>
+  <text x="378" y="72" font-size="22" opacity="0.9">⚙️</text>
+  <text x="410" y="68" fill="#ffffff" font-size="15" font-weight="700" font-family="'Rajdhani',sans-serif" letter-spacing="1">Python Simulator</text>
+  <text x="410" y="84" fill="rgba(200,240,255,0.5)" font-size="10" font-family="'Share Tech Mono',monospace" letter-spacing="0.5">500 SENSORS · 1 TICK / SECOND</text>
+  <rect x="356" y="95" width="58" height="18" rx="4" fill="rgba(0,200,255,0.12)" stroke="rgba(0,200,255,0.3)" stroke-width="0.8"/>
+  <text x="385" y="108" fill="#00c8ff" font-size="9" font-family="'Share Tech Mono',monospace" text-anchor="middle">T×120</text>
+  <rect x="420" y="95" width="52" height="18" rx="4" fill="rgba(255,68,68,0.1)" stroke="rgba(255,68,68,0.3)" stroke-width="0.8"/>
+  <text x="446" y="108" fill="#ff6666" font-size="9" font-family="'Share Tech Mono',monospace" text-anchor="middle">B×100</text>
+  <rect x="478" y="95" width="52" height="18" rx="4" fill="rgba(0,255,170,0.1)" stroke="rgba(0,255,170,0.3)" stroke-width="0.8"/>
+  <text x="504" y="108" fill="#00ffaa" font-size="9" font-family="'Share Tech Mono',monospace" text-anchor="middle">G×80</text>
+  <rect x="536" y="95" width="52" height="18" rx="4" fill="rgba(0,200,255,0.08)" stroke="rgba(0,200,255,0.25)" stroke-width="0.8"/>
+  <text x="562" y="108" fill="#00c8ff" font-size="9" font-family="'Share Tech Mono',monospace" text-anchor="middle">C×80</text>
+  <rect x="594" y="95" width="50" height="18" rx="4" fill="rgba(255,179,0,0.08)" stroke="rgba(255,179,0,0.25)" stroke-width="0.8"/>
+  <text x="619" y="108" fill="#ffb300" font-size="9" font-family="'Share Tech Mono',monospace" text-anchor="middle">+×120</text>
+</g>
+
+<!-- REDIS PUB/SUB — mid left -->
+<g class="node-group" data-id="redis" onclick="showTip(event,'redis')">
+  <rect x="80" y="230" width="200" height="75" rx="12" fill="#00c8ff" opacity="0.03" filter="url(#node-blur)" class="node-glow"/>
+  <rect x="80" y="230" width="200" height="75" rx="12" fill="#071520" stroke="#00c8ff" stroke-width="1.5" class="node-rect"/>
+  <rect x="80" y="230" width="200" height="3" rx="1.5" fill="#00c8ff" opacity="0.6"/>
+  <text x="108" y="265" font-size="18">📡</text>
+  <text x="138" y="263" fill="#fff" font-size="14" font-weight="700" font-family="'Rajdhani',sans-serif" letter-spacing="1">Redis Pub/Sub</text>
+  <text x="138" y="279" fill="rgba(200,240,255,0.45)" font-size="10" font-family="'Share Tech Mono',monospace">real-time fan-out</text>
+  <text x="88" y="299" fill="#00c8ff" font-size="9" font-family="'Share Tech Mono',monospace" opacity="0.7">6 channels · 500 msgs/sec</text>
+</g>
+
+<!-- BATCH WRITER — mid right -->
+<g class="node-group" data-id="batch" onclick="showTip(event,'batch')">
+  <rect x="720" y="230" width="200" height="75" rx="12" fill="#ffb300" opacity="0.03" filter="url(#node-blur)" class="node-glow"/>
+  <rect x="720" y="230" width="200" height="75" rx="12" fill="#071520" stroke="#ffb300" stroke-width="1.5" class="node-rect"/>
+  <rect x="720" y="230" width="200" height="3" rx="1.5" fill="#ffb300" opacity="0.6"/>
+  <text x="748" y="265" font-size="18">💾</text>
+  <text x="778" y="263" fill="#fff" font-size="14" font-weight="700" font-family="'Rajdhani',sans-serif" letter-spacing="1">Batch Writer</text>
+  <text x="778" y="279" fill="rgba(200,240,255,0.45)" font-size="10" font-family="'Share Tech Mono',monospace">in-memory buffer</text>
+  <text x="728" y="299" fill="#ffb300" font-size="9" font-family="'Share Tech Mono',monospace" opacity="0.7">2500 rows per flush</text>
+</g>
+
+<!-- FASTAPI WEBSOCKET — lower left -->
+<g class="node-group" data-id="fastapi" onclick="showTip(event,'fastapi')">
+  <rect x="80" y="400" width="220" height="85" rx="12" fill="#00c8ff" opacity="0.03" filter="url(#node-blur)" class="node-glow"/>
+  <rect x="80" y="400" width="220" height="85" rx="12" fill="#071520" stroke="#00c8ff" stroke-width="1.5" class="node-rect"/>
+  <rect x="80" y="400" width="220" height="3" rx="1.5" fill="#00c8ff" opacity="0.6"/>
+  <text x="108" y="435" font-size="18">🚀</text>
+  <text x="138" y="433" fill="#fff" font-size="14" font-weight="700" font-family="'Rajdhani',sans-serif" letter-spacing="1">FastAPI</text>
+  <text x="138" y="449" fill="rgba(200,240,255,0.45)" font-size="10" font-family="'Share Tech Mono',monospace">WS /ws/live · WS /ws/alerts</text>
+  <text x="88" y="476" fill="#00c8ff" font-size="9" font-family="'Share Tech Mono',monospace" opacity="0.7">broadcasts to all clients · auto-reconnect</text>
+</g>
+
+<!-- ALERT ENGINE — lower center -->
+<g class="node-group" data-id="alert-engine" onclick="showTip(event,'alert-engine')">
+  <rect x="390" y="400" width="220" height="85" rx="12" fill="#ff4444" opacity="0.03" filter="url(#node-blur)" class="node-glow"/>
+  <rect x="390" y="400" width="220" height="85" rx="12" fill="#071520" stroke="#ff4444" stroke-width="1.5" class="node-rect"/>
+  <rect x="390" y="400" width="220" height="3" rx="1.5" fill="#ff4444" opacity="0.6"/>
+  <text x="418" y="435" font-size="18">🚨</text>
+  <text x="448" y="433" fill="#fff" font-size="14" font-weight="700" font-family="'Rajdhani',sans-serif" letter-spacing="1">Alert Engine</text>
+  <text x="448" y="449" fill="rgba(200,240,255,0.45)" font-size="10" font-family="'Share Tech Mono',monospace">threshold check</text>
+  <text x="398" y="469" fill="rgba(255,179,0,0.8)" font-size="9" font-family="'Share Tech Mono',monospace">⚠ 80% → YELLOW</text>
+  <text x="398" y="481" fill="rgba(255,68,68,0.9)" font-size="9" font-family="'Share Tech Mono',monospace">🔴 100% → CRITICAL</text>
+</g>
+
+<!-- TIMESCALEDB — lower right -->
+<g class="node-group" data-id="timescale" onclick="showTip(event,'timescale')">
+  <rect x="720" y="400" width="210" height="110" rx="12" fill="#ffb300" opacity="0.03" filter="url(#node-blur)" class="node-glow"/>
+  <rect x="720" y="400" width="210" height="110" rx="12" fill="#071520" stroke="#ffb300" stroke-width="1.5" class="node-rect"/>
+  <rect x="720" y="400" width="210" height="3" rx="1.5" fill="#ffb300" opacity="0.6"/>
+  <text x="748" y="437" font-size="18">🗄️</text>
+  <text x="778" y="435" fill="#fff" font-size="14" font-weight="700" font-family="'Rajdhani',sans-serif" letter-spacing="1">TimescaleDB</text>
+  <text x="778" y="451" fill="rgba(200,240,255,0.45)" font-size="10" font-family="'Share Tech Mono',monospace">hypertables</text>
+  <text x="728" y="472" fill="#ffb300" font-size="9" font-family="'Share Tech Mono',monospace" opacity="0.7">min · mean · max · std_dev</text>
+  <text x="728" y="486" fill="#00ffaa" font-size="9" font-family="'Share Tech Mono',monospace" opacity="0.6">continuous aggregates · &lt;50ms</text>
+  <text x="728" y="500" fill="rgba(200,240,255,0.35)" font-size="9" font-family="'Share Tech Mono',monospace">60-min rolling stats window</text>
+</g>
+
+<!-- UI DASHBOARD — bottom left -->
+<g class="node-group" data-id="ui" onclick="showTip(event,'ui')">
+  <rect x="80" y="580" width="220" height="85" rx="12" fill="#00c8ff" opacity="0.03" filter="url(#node-blur)" class="node-glow"/>
+  <rect x="80" y="580" width="220" height="85" rx="12" fill="#071520" stroke="#00c8ff" stroke-width="1.5" class="node-rect"/>
+  <rect x="80" y="580" width="220" height="3" rx="1.5" fill="#00c8ff" opacity="0.6"/>
+  <text x="108" y="616" font-size="18">🖥️</text>
+  <text x="140" y="614" fill="#fff" font-size="14" font-weight="700" font-family="'Rajdhani',sans-serif" letter-spacing="1">React Dashboard</text>
+  <text x="140" y="630" fill="rgba(200,240,255,0.45)" font-size="10" font-family="'Share Tech Mono',monospace">real-time plots</text>
+  <text x="88" y="650" fill="#00c8ff" font-size="9" font-family="'Share Tech Mono',monospace" opacity="0.7">heatmap · gauges · line charts</text>
+  <text x="88" y="661" fill="rgba(200,240,255,0.3)" font-size="9" font-family="'Share Tech Mono',monospace">Plotly.js (air-gap safe)</text>
+</g>
+
+<!-- ALERT PANEL — bottom center -->
+<g class="node-group" data-id="alert-panel" onclick="showTip(event,'alert-panel')">
+  <rect x="390" y="580" width="230" height="85" rx="12" fill="#ff4444" opacity="0.03" filter="url(#node-blur)" class="node-glow"/>
+  <rect x="390" y="580" width="230" height="85" rx="12" fill="#071520" stroke="#ff4444" stroke-width="1.5" class="node-rect"/>
+  <rect x="390" y="580" width="230" height="3" rx="1.5" fill="#ff4444" opacity="0.6"/>
+  <text x="418" y="616" font-size="18">🔔</text>
+  <text x="450" y="614" fill="#fff" font-size="14" font-weight="700" font-family="'Rajdhani',sans-serif" letter-spacing="1">Alert Panel</text>
+  <text x="450" y="630" fill="rgba(200,240,255,0.45)" font-size="10" font-family="'Share Tech Mono',monospace">live fault feed</text>
+  <rect x="398" y="641" width="80" height="16" rx="4" fill="rgba(255,179,0,0.15)" stroke="rgba(255,179,0,0.4)" stroke-width="0.8"/>
+  <text x="438" y="653" fill="#ffb300" font-size="9" font-family="'Share Tech Mono',monospace" text-anchor="middle">⚠ WARNING</text>
+  <rect x="486" y="641" width="80" height="16" rx="4" fill="rgba(255,68,68,0.15)" stroke="rgba(255,68,68,0.4)" stroke-width="0.8"/>
+  <text x="526" y="653" fill="#ff4444" font-size="9" font-family="'Share Tech Mono',monospace" text-anchor="middle">🔴 CRITICAL</text>
+</g>
+
+<!-- PARTICLE CANVAS LAYER -->
+<g id="particles-layer"></g>
+
+</svg>
+</div>
+
+<!-- INFO BAR -->
+<div class="info-bar">
+  <div class="info-card">
+    <div class="ic-label">Write throughput</div>
+    <div class="ic-val cyan" id="wt">500</div>
+    <div class="ic-sub">rows / second</div>
+  </div>
+  <div class="info-card">
+    <div class="ic-label">Batch flush interval</div>
+    <div class="ic-val amber">5 sec</div>
+    <div class="ic-sub">2,500 rows per flush</div>
+  </div>
+  <div class="info-card">
+    <div class="ic-label">Alert threshold</div>
+    <div class="ic-val amber">80%</div>
+    <div class="ic-sub">of max → warning</div>
+  </div>
+  <div class="info-card">
+    <div class="ic-label">Critical threshold</div>
+    <div class="ic-val red">100%</div>
+    <div class="ic-sub">of max → critical</div>
+  </div>
+  <div class="info-card">
+    <div class="ic-label">Historical query</div>
+    <div class="ic-val green">&lt;50ms</div>
+    <div class="ic-sub">via continuous aggregate</div>
+  </div>
+  <div class="info-card">
+    <div class="ic-label">WS reconnect</div>
+    <div class="ic-val cyan">auto</div>
+    <div class="ic-sub">exponential backoff</div>
+  </div>
+</div>
+
+<!-- TOOLTIP -->
+<div id="tip">
+  <div class="tip-title" id="tip-title"></div>
+  <div class="tip-badge" id="tip-badge"></div>
+  <div class="tip-desc" id="tip-desc"></div>
+  <div id="tip-rows"></div>
+</div>
+
+<script>
+const tipData = {
+  simulator: {
+    title:'Python Sensor Simulator',
+    badge:'LAYER 1 · DATA GENERATION', badgeColor:'rgba(0,200,255,0.15)', badgeText:'#00c8ff',
+    desc:'Generates 500 realistic sensor readings every second. Gaussian noise + slow drift per sensor. On-demand anomaly injection for demo scenarios. Pluggable DataSource interface — swap for real SCADA in production.',
+    rows:[['Tick rate','1 second'],['Turbine','T001–T120 · 120 sensors'],['Boiler','B001–B100 · 100 sensors'],['Generator','G001–G080 · 80 sensors'],['Cooling','C001–C080 · 80 sensors'],['Transformer+Aux','TR+A · 120 sensors'],['Output','Redis Pub/Sub + Batch Writer']]
+  },
+  redis: {
+    title:'Redis Pub/Sub',
+    badge:'LAYER 2 · STREAMING', badgeColor:'rgba(0,200,255,0.15)', badgeText:'#00c8ff',
+    desc:'Fan-out broker. Simulator publishes to 6 channels (one per subsystem). All FastAPI instances subscribe — solves WebSocket multi-instance scaling. 6 messages/sec, not 500.',
+    rows:[['Channels','subsystem:turbine … ×6'],['Msg rate','6 messages / second'],['Per message','~120 readings (JSON)'],['Also used','Rolling 60s buffer (sorted sets)'],['On WS connect','Last 60s sent immediately']]
+  },
+  batch: {
+    title:'Batch Writer',
+    badge:'LAYER 2 · PERSISTENCE', badgeColor:'rgba(255,179,0,0.15)', badgeText:'#ffb300',
+    desc:'Collects readings from simulator into an in-memory deque. Bulk-inserts to TimescaleDB every 5 seconds using asyncpg executemany. Never blocks the simulator tick loop — fully async background task.',
+    rows:[['Collect rate','500 readings / sec'],['Flush interval','Every 5 seconds'],['Rows per flush','~2,500'],['DB operation','1 bulk INSERT per flush'],['On DB failure','Log + continue (resilient)']]
+  },
+  fastapi: {
+    title:'FastAPI WebSocket Server',
+    badge:'LAYER 3 · API CORE', badgeColor:'rgba(0,200,255,0.15)', badgeText:'#00c8ff',
+    desc:'Subscribes to Redis channels. Broadcasts messages to all connected WebSocket clients. Also serves 60-min historical stats (min/max/mean) queried from TimescaleDB continuous aggregates.',
+    rows:[['WS /ws/live','All 500 sensor readings'],['WS /ws/alerts','Alert events only'],['On connect','60s Redis buffer sent first'],['Hist query','60-min stats from TimescaleDB'],['REST','GET /data/* · POST /simulator/*']]
+  },
+  'alert-engine': {
+    title:'Alert Engine',
+    badge:'LAYER 3 · DETECTION', badgeColor:'rgba(255,68,68,0.15)', badgeText:'#ff4444',
+    desc:'Receives real-time feed from TimescaleDB. Checks all 500 readings against thresholds. Deduplication — fires exactly ONE alert per event. Auto-resolves when sensor returns to normal. Pushes to FastAPI and Alert Panel.',
+    rows:[['Input','Real-time feed from TimescaleDB'],['Warning','Value ≥ 80% of max_threshold'],['Critical','Value ≥ 100% of max_threshold'],['Dedup','active_alerts dict (in-memory)'],['Output','→ FastAPI WS · → Alert Panel']]
+  },
+  timescale: {
+    title:'TimescaleDB',
+    badge:'LAYER 3 · STORAGE', badgeColor:'rgba(255,179,0,0.15)', badgeText:'#ffb300',
+    desc:'PostgreSQL + time-series extension. Hypertables auto-partition data by time. Continuous aggregates pre-compute 60-min rollups (mean/min/max/stddev). Feeds real-time stats to Alert Engine. Historical queries return in <50ms.',
+    rows:[['Table','readings(time, sensor_id, value)'],['Hypertable','Auto-partitioned on time'],['Aggregate','readings_60min · auto-refresh'],['→ Alert Engine','Real-time stats stream'],['→ FastAPI','60-min hist query · <50ms'],['Write','500 rows/sec via Batch Writer']]
+  },
+  ui: {
+    title:'React Dashboard',
+    badge:'LAYER 4 · FRONTEND', badgeColor:'rgba(0,200,255,0.15)', badgeText:'#00c8ff',
+    desc:'Primary demo screen. Plotly.js bundled locally — works in air-gapped BHEL environment. Uses Plotly.react() for live updates. Links to Alert Panel for fault visibility. Historical charts from TimescaleDB via REST.',
+    rows:[['Heatmap','All 500 sensors · green→amber→red'],['Line charts','60s rolling window per subsystem'],['Gauges','RPM · Frequency · Steam Pressure'],['→ Alert Panel','Navigates to fault feed'],['Offline','Plotly.js bundled · no CDN']]
+  },
+  'alert-panel': {
+    title:'Alert Panel',
+    badge:'LAYER 4 · ALERTS', badgeColor:'rgba(255,68,68,0.15)', badgeText:'#ff4444',
+    desc:'Connects to WS /ws/alerts. New alerts slide in from top. Shows sensor name, current value vs threshold, severity, and elapsed time. Acknowledge button persists resolution back to TimescaleDB.',
+    rows:[['Source','Alert Engine (WS /ws/alerts)'],['From UI','Navigated from Dashboard'],['Warning','Value at 80% threshold → Yellow'],['Critical','Value at 100% threshold → Red'],['Acknowledge','POST /alerts/{id} → TimescaleDB']]
+  }
+};
+
+let tipVisible = false;
+function showTip(e, id) {
+  const d = tipData[id]; if(!d) return;
+  const tip = document.getElementById('tip');
+  document.getElementById('tip-title').textContent = d.title;
+  const b = document.getElementById('tip-badge');
+  b.textContent = d.badge;
+  b.style.background = d.badgeColor;
+  b.style.color = d.badgeText;
+  b.style.border = `1px solid ${d.badgeText}44`;
+  document.getElementById('tip-desc').textContent = d.desc;
+  const rows = document.getElementById('tip-rows');
+  rows.innerHTML = d.rows.map(r=>`<div class="tip-row"><span class="tip-key">${r[0]}</span><span class="tip-val">${r[1]}</span></div>`).join('');
+  let x = e.clientX + 16, y = e.clientY - 10;
+  if(x + 310 > window.innerWidth) x = e.clientX - 316;
+  if(y + 400 > window.innerHeight) y = window.innerHeight - 420;
+  tip.style.left = x+'px'; tip.style.top = y+'px';
+  tip.classList.add('show'); tipVisible = true;
+  e.stopPropagation();
+}
+document.addEventListener('click', ()=>{ if(tipVisible){ document.getElementById('tip').classList.remove('show'); tipVisible=false; }});
+
+// ── PARTICLE SYSTEM ─────────────────────────────────────────────────────────
+const flowDefs = [
+  { id:'p-sim-redis',        color:'#00c8ff', speed:2.8, count:5, size:3 },
+  { id:'p-sim-batch',        color:'#ffb300', speed:1.0, count:2, size:3 },
+  { id:'p-redis-fastapi',    color:'#00c8ff', speed:2.5, count:4, size:3 },
+  { id:'p-batch-ts',         color:'#ffb300', speed:0.6, count:2, size:3.5 },
+  { id:'p-batch-alert', color:'#ffb300', speed:2.0, count:4, size:3 },
+  { id:'p-alert-fastapi',    color:'#ff4444', speed:1.8, count:3, size:3 },
+  { id:'p-ts-fastapi-hist',  color:'#00ffaa', speed:0.7, count:2, size:2.5 },
+  { id:'p-fastapi-ui',       color:'#00c8ff', speed:3.0, count:5, size:2.5 },
+  { id:'p-alert-panel',      color:'#ff4444', speed:1.8, count:3, size:2.5 },
+  { id:'p-ui-alertpanel',    color:'#00c8ff', speed:2.2, count:3, size:2.5 },
+  { id:'p-alertpanel-ts',    color:'#ff4444', speed:0.8, count:2, size:2.5 },
+];
+
+class Particle {
+  constructor(pathEl, color, speed, size) {
+    this.pathEl = pathEl;
+    this.totalLen = pathEl.getTotalLength();
+    this.progress = Math.random();
+    this.speed = speed * (0.7 + Math.random()*0.6);
+    this.color = color;
+    this.size = size;
+    this.alpha = 0.7 + Math.random()*0.3;
+
+    this.el = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    this.el.setAttribute('r', size);
+    this.el.setAttribute('fill', color);
+    this.glow = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    this.glow.setAttribute('r', size * 2.5);
+    this.glow.setAttribute('fill', color);
+    this.glow.setAttribute('opacity', '0.2');
+    document.getElementById('particles-layer').appendChild(this.glow);
+    document.getElementById('particles-layer').appendChild(this.el);
+  }
+
+  update(dt) {
+    this.progress += dt * this.speed * 0.00022;
+    if(this.progress > 1) this.progress -= 1;
+    const len = this.progress * this.totalLen;
+    const pt = this.pathEl.getPointAtLength(len);
+    const fade = Math.sin(this.progress * Math.PI);
+    const a = this.alpha * fade;
+    this.el.setAttribute('cx', pt.x);
+    this.el.setAttribute('cy', pt.y);
+    this.el.setAttribute('opacity', a);
+    this.glow.setAttribute('cx', pt.x);
+    this.glow.setAttribute('cy', pt.y);
+    this.glow.setAttribute('opacity', a * 0.3);
+  }
+}
+
+const particles = [];
+flowDefs.forEach(def => {
+  const el = document.getElementById(def.id);
+  if(!el) return;
+  for(let i=0; i<def.count; i++){
+    particles.push(new Particle(el, def.color, def.speed, def.size));
+  }
+});
+particles.forEach((p,i) => { p.progress = i/particles.length * Math.random(); });
+
+let last = performance.now();
+function animate(now) {
+  const dt = Math.min(now - last, 50);
+  last = now;
+  particles.forEach(p => p.update(dt));
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+document.querySelectorAll('.node-group').forEach(g => {
+  g.addEventListener('mouseenter', () => { g.querySelector('.node-glow').style.opacity = '1'; });
+  g.addEventListener('mouseleave', () => { g.querySelector('.node-glow').style.opacity = '0'; });
+});
+
+setInterval(()=>{
+  document.getElementById('pps').textContent = 500 + Math.floor((Math.random()-0.5)*30);
+  document.getElementById('wt').textContent = 500 + Math.floor((Math.random()-0.5)*20);
+}, 900);
+</script>
+</body>
+</html>
