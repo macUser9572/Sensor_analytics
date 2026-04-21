@@ -70,6 +70,15 @@ export default function SensorDetailModal({ sensor, source, onClose }) {
     }
   }, [sensor.value]);
 
+  useEffect(() => {
+    if (history && history.y && history.y.length > 0) {
+        const min = Math.min(...history.y);
+        const max = Math.max(...history.y);
+        const mean = history.y.reduce((a, b) => a + b, 0) / history.y.length;
+        setStats({ min: min.toFixed(2), max: max.toFixed(2), mean: mean.toFixed(2) });
+    }
+  }, [history]);
+
   return (
     <div className="fixed inset-0 bg-dashboard-bg/90 backdrop-blur-sm z-50 flex items-center justify-center p-6 animate-[fadeIn_0.2s_ease-out]">
        <div className="bg-dashboard-card border border-dashboard-border shadow-2xl rounded-xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden">
