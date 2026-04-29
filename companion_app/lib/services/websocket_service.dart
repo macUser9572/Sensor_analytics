@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../models/models.dart';
-import '../config.dart';
+import '../config/app_config.dart';
 
 class WebSocketService {
   WebSocketChannel? _liveChannel;
@@ -33,7 +33,7 @@ class WebSocketService {
   // ──────────────────────────────────────────────
   void connectLive() {
     try {
-      final uri = Uri.parse('${Config.wsBaseUrl}/ws/live');
+      final uri = Uri.parse('${AppConfig.wsBase}/ws/live');
       _liveChannel = WebSocketChannel.connect(uri);
 
       _startPingTimer();
@@ -104,7 +104,7 @@ class WebSocketService {
   // ──────────────────────────────────────────────
   void connectAlerts() {
     try {
-      final uri = Uri.parse('${Config.wsBaseUrl}/ws/alerts');
+      final uri = Uri.parse('${AppConfig.wsBase}/ws/alerts');
       _alertsChannel = WebSocketChannel.connect(uri);
 
       _alertsChannel!.stream.listen(
@@ -139,6 +139,19 @@ class WebSocketService {
   // ──────────────────────────────────────────────
   // RECONNECTION
   // ──────────────────────────────────────────────
+  void reconnect() {
+    _liveChannel?.sink.close();
+    _alertsChannel?.sink.close();
+    _liveReconnectTimer?.cancel();
+    _alertsReconnectTimer?.cancel();
+    
+    _liveRetryCount = 0;
+    _alertsRetryCount = 0;
+    
+    connectLive();
+    connectAlerts();
+  }
+
   void _scheduleLiveReconnect() {
     if (_liveReconnectTimer?.isActive ?? false) return;
     final delay = _backoff(_liveRetryCount++);

@@ -1,28 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   body {
-    @apply bg-dashboard-bg text-dashboard-textMain overflow-hidden h-screen w-screen m-0;
+    @apply bg-industrial-bg text-gray-200 font-sans antialiased m-0 p-0 overflow-x-hidden;
   }
 }
 
-/* Custom Scrollbar for dark theme */
+/* Custom scrollbar for industrial look */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f172a; 
+  background: #000000;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155; 
+  background: #333333;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569; 
+  background: #00e5ff;
 }

@@ -1,3 +1,5 @@
+enum SensorHealthState { live, stale, uncertain, fault }
+
 class SensorReading {
   final String id;
   final String subsystem;
@@ -6,6 +8,14 @@ class SensorReading {
   final String unit;
   final String status; // normal, warning, critical
   final DateTime timestamp;
+
+  SensorHealthState get healthState {
+    if (status == 'fault' || status == 'missing') return SensorHealthState.fault;
+    final age = DateTime.now().difference(timestamp).inSeconds;
+    if (age > 60) return SensorHealthState.uncertain;
+    if (age > 15 || status == 'warning' || status == 'stale') return SensorHealthState.stale;
+    return SensorHealthState.live;
+  }
 
   SensorReading({
     required this.id,
@@ -38,6 +48,8 @@ class SubsystemStatus {
   final int normalCount;
   final int warningCount;
   final int criticalCount;
+  final int faultCount;
+  final int missingCount;
   
   SubsystemStatus({
     required this.name,
@@ -45,9 +57,12 @@ class SubsystemStatus {
     required this.normalCount,
     required this.warningCount,
     required this.criticalCount,
+    this.faultCount = 0,
+    this.missingCount = 0,
   });
 
   String get worstStatus {
+    if (faultCount > 0 || missingCount > 0) return 'fault';
     if (criticalCount > 0) return 'critical';
     if (warningCount > 0) return 'warning';
     return 'normal';
@@ -60,6 +75,8 @@ class SubsystemStatus {
       normalCount: json['normal'] ?? 0,
       warningCount: json['warning'] ?? 0,
       criticalCount: json['critical'] ?? 0,
+      faultCount: json['fault'] ?? 0,
+      missingCount: json['missing'] ?? 0,
     );
   }
 }
@@ -72,6 +89,7 @@ class Alert {
   final String type; // warning, critical
   final double threshold;
   final double currentValue;
+  final String unit;
   final DateTime firedAt;
 
   Alert({
@@ -82,6 +100,7 @@ class Alert {
     required this.type,
     required this.threshold,
     required this.currentValue,
+    required this.unit,
     required this.firedAt,
   });
 
@@ -94,6 +113,7 @@ class Alert {
       type: json['severity'] ?? json['type'] ?? 'warning',
       threshold: (json['threshold'] ?? 0.0).toDouble(),
       currentValue: (json['value'] ?? json['current_value'] ?? 0.0).toDouble(),
+      unit: json['unit'] ?? '',
       firedAt: json['fired_at'] != null
           ? DateTime.parse(json['fired_at']).toLocal()
           : DateTime.now(),
@@ -117,4 +137,3 @@ class AlertEvent {
   factory AlertEvent.resolved(String sensorId) =>
       AlertEvent._(type: AlertEventType.resolved, sensorId: sensorId);
 }
-

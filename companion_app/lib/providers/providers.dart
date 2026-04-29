@@ -109,12 +109,11 @@ final liveReadingsStreamProvider = StreamProvider<List<SensorReading>>((ref) {
   return webSocketService.liveReadingsStream;
 });
 
-// Current Sensors State — fetches from REST initially; updated by WS
-final currentSensorsProvider = StateNotifierProvider.family<CurrentSensorsNotifier, AsyncValue<List<SensorReading>>, String>((ref, subsystem) {
-  final notifier = CurrentSensorsNotifier(subsystem);
+// Global sensors map provider
+final sensorsMapProvider = StateNotifierProvider<SensorsMapNotifier, AsyncValue<Map<String, SensorReading>>>((ref) {
+  final notifier = SensorsMapNotifier();
   notifier.fetchInitialSensors();
 
-  // Listen to live WebSocket stream
   ref.listen<AsyncValue<List<SensorReading>>>(liveReadingsStreamProvider, (previous, next) {
     if (next.hasValue && next.value != null) {
       notifier.updateFromLive(next.value!);
@@ -124,17 +123,14 @@ final currentSensorsProvider = StateNotifierProvider.family<CurrentSensorsNotifi
   return notifier;
 });
 
-class CurrentSensorsNotifier extends StateNotifier<AsyncValue<List<SensorReading>>> {
-  final String subsystem;
-
-  CurrentSensorsNotifier(this.subsystem) : super(const AsyncLoading());
+class SensorsMapNotifier extends StateNotifier<AsyncValue<Map<String, SensorReading>>> {
+  SensorsMapNotifier() : super(const AsyncLoading());
 
   Future<void> fetchInitialSensors() async {
     try {
       state = const AsyncLoading();
       final allSensors = await apiService.fetchCurrentSensors();
-      final filtered = allSensors.values.where((s) => s.subsystem == subsystem).toList();
-      state = AsyncData(filtered);
+      state = AsyncData(allSensors);
     } catch (e, stack) {
       state = AsyncError(e, stack);
     }
@@ -142,19 +138,46 @@ class CurrentSensorsNotifier extends StateNotifier<AsyncValue<List<SensorReading
 
   void updateFromLive(List<SensorReading> liveReadings) {
     if (state.hasValue && state.value != null) {
-      final currentMap = { for (var s in state.value!) s.id: s };
+      final currentMap = Map<String, SensorReading>.from(state.value!);
       bool changed = false;
 
       for (final r in liveReadings) {
-        if (r.subsystem == subsystem) {
-          currentMap[r.id] = r;
-          changed = true;
-        }
+        currentMap[r.id] = r;
+        changed = true;
       }
 
       if (changed) {
-        state = AsyncData(currentMap.values.toList());
+        state = AsyncData(currentMap);
       }
     }
+  }
+}
+
+// Current Sensors State for a specific subsystem
+final currentSensorsProvider = Provider.family<AsyncValue<List<SensorReading>>, String>((ref, subsystem) {
+  final sensorsMap = ref.watch(sensorsMapProvider);
+  return sensorsMap.whenData((map) {
+    return map.values.where((s) => s.subsystem == subsystem).toList();
+  });
+});
+
+// Selected sensors for comparison feature
+final selectedSensorsProvider = StateNotifierProvider<SelectedSensorsNotifier, List<String>>((ref) {
+  return SelectedSensorsNotifier();
+});
+
+class SelectedSensorsNotifier extends StateNotifier<List<String>> {
+  SelectedSensorsNotifier() : super([]);
+
+  void toggleSelection(String id) {
+    if (state.contains(id)) {
+      state = state.where((s) => s != id).toList();
+    } else {
+      state = [...state, id];
+    }
+  }
+
+  void clearSelection() {
+    state = [];
   }
 }

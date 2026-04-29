@@ -1,12 +1,25 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../config.dart';
+import '../config/app_config.dart';
 import '../models/models.dart';
 
 class ApiService {
+  Future<bool> testConnection() async {
+    try {
+      final response = await http.get(Uri.parse('${AppConfig.apiBase}/health')).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        return decoded['status'] == 'ok' || decoded['status'] == 'degraded';
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
   Future<Map<String, SensorReading>> fetchCurrentSensors() async {
     try {
-      final response = await http.get(Uri.parse('${Config.baseUrl}/data/sensors/current'));
+      final response = await http.get(Uri.parse('${AppConfig.apiBase}/data/sensors/current'));
       if (response.statusCode == 200) {
         final dynamic decoded = jsonDecode(response.body);
         final Map<String, SensorReading> result = {};
@@ -38,7 +51,7 @@ class ApiService {
   Future<List<Map<String, dynamic>>> fetchSensorHistory(String sensorId, {int minutes = 10}) async {
     try {
       final response = await http.get(
-        Uri.parse('${Config.baseUrl}/data/sensors/$sensorId/history?minutes=$minutes'),
+        Uri.parse('${AppConfig.apiBase}/data/sensors/$sensorId/history?minutes=$minutes'),
       );
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -51,9 +64,32 @@ class ApiService {
     }
   }
 
+  Future<Map<String, List<Map<String, dynamic>>>> fetchSensorCompare(List<String> ids, {int minutes = 60}) async {
+    try {
+      final idsParam = ids.join(',');
+      final response = await http.get(
+        Uri.parse('${AppConfig.apiBase}/data/sensors/compare?ids=$idsParam&minutes=$minutes'),
+      );
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        final Map<String, List<Map<String, dynamic>>> result = {};
+        data.forEach((key, value) {
+          if (value is List) {
+            result[key] = List<Map<String, dynamic>>.from(value);
+          }
+        });
+        return result;
+      } else {
+        throw Exception('Failed to fetch compare data: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
+
   Future<List<Alert>> fetchActiveAlerts() async {
     try {
-      final response = await http.get(Uri.parse('${Config.baseUrl}/api/v1/alerts/active'));
+      final response = await http.get(Uri.parse('${AppConfig.apiBase}/api/v1/alerts/active'));
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         return data.map((item) => Alert.fromJson(item)).toList();
@@ -67,7 +103,7 @@ class ApiService {
 
   Future<bool> acknowledgeAlert(String alertId) async {
     try {
-      final response = await http.post(Uri.parse('${Config.baseUrl}/api/v1/alerts/$alertId/acknowledge'));
+      final response = await http.post(Uri.parse('${AppConfig.apiBase}/api/v1/alerts/$alertId/acknowledge'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['status'] == 'success';

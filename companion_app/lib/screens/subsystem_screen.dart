@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:go_router/go_router.dart';
+import 'package:go_router/go_router.dart';
 import '../providers/providers.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
@@ -12,12 +14,26 @@ class SubsystemScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch the future provider for sensors. (Ideally we'd merge WS updates in here).
     final sensorsAsync = ref.watch(currentSensorsProvider(subsystem));
+    final selectedSensors = ref.watch(selectedSensorsProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(subsystem),
+        actions: [
+          if (selectedSensors.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+              child: ElevatedButton(
+                onPressed: () => context.push('/compare'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.secondary,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text('COMPARE (${selectedSensors.length})'),
+              ),
+            ),
+        ],
       ),
       body: sensorsAsync.when(
         data: (sensors) {
@@ -28,7 +44,8 @@ class SubsystemScreen extends ConsumerWidget {
             itemCount: sensors.length,
             itemBuilder: (context, index) {
               final sensor = sensors[index];
-              return _buildSensorRow(context, sensor);
+              final isSelected = selectedSensors.contains(sensor.id);
+              return _buildSensorRow(context, ref, sensor, isSelected);
             },
           );
         },
@@ -38,39 +55,67 @@ class SubsystemScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSensorRow(BuildContext context, SensorReading sensor) {
+  Widget _buildSensorRow(BuildContext context, WidgetRef ref, SensorReading sensor, bool isSelected) {
     Color statusColor;
-    switch (sensor.status) {
-      case 'critical':
-        statusColor = Colors.redAccent;
+    switch (sensor.healthState) {
+      case SensorHealthState.fault:
+        statusColor = Colors.grey;
         break;
-      case 'warning':
+      case SensorHealthState.stale:
         statusColor = Colors.orangeAccent;
         break;
+      case SensorHealthState.uncertain:
+        statusColor = Colors.yellow;
+        break;
+      case SensorHealthState.live:
       default:
         statusColor = Colors.greenAccent;
     }
 
+    // Override with status if critical/warning
+    if (sensor.status == 'critical') {
+      statusColor = Colors.redAccent;
+    } else if (sensor.status == 'warning' && statusColor == Colors.greenAccent) {
+      statusColor = Colors.orangeAccent;
+    } else if (sensor.status == 'fault' || sensor.status == 'missing') {
+      statusColor = Colors.grey;
+    }
+
+    final duration = DateTime.now().difference(sensor.timestamp);
+    String timeAgo;
+    if (duration.inSeconds < 60) {
+      timeAgo = '${duration.inSeconds}s ago';
+    } else if (duration.inMinutes < 60) {
+      timeAgo = '${duration.inMinutes}m ago';
+    } else {
+      timeAgo = '${duration.inHours}h ago';
+    }
+
     return ListTile(
-      title: Text(sensor.metric.toUpperCase()),
-      subtitle: Text('ID: ${sensor.id}'),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
+      leading: Checkbox(
+        value: isSelected,
+        onChanged: (val) {
+          ref.read(selectedSensorsProvider.notifier).toggleSelection(sensor.id);
+        },
+      ),
+      title: Row(
         children: [
-          Text(
-            '${sensor.value.toStringAsFixed(2)} ${sensor.unit}',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(width: 12),
           Container(
-            width: 12,
-            height: 12,
+            width: 10,
+            height: 10,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: statusColor,
             ),
-          )
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Text(sensor.metric.toUpperCase())),
         ],
+      ),
+      subtitle: Text('ID: ${sensor.id} • Last seen: $timeAgo'),
+      trailing: Text(
+        '${sensor.value.toStringAsFixed(2)} ${sensor.unit}',
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
       ),
       onTap: () {
         _showSparklineBottomSheet(context, sensor);
@@ -122,7 +167,7 @@ class _SensorBottomSheetState extends ConsumerState<_SensorBottomSheet> {
 
   Future<void> _loadHistory() async {
     try {
-      final history = await apiService.fetchSensorHistory(widget.sensor.id, minutes: 10);
+      final history = await apiService.fetchSensorHistory(widget.sensor.id, minutes: 15);
       
       final newSpots = <FlSpot>[];
       for (int i = 0; i < history.length; i++) {
@@ -132,7 +177,6 @@ class _SensorBottomSheetState extends ConsumerState<_SensorBottomSheet> {
         _tick++;
       }
       
-      // If history is too long, trim it to recent 60 to mimic web app's 60s moving window
       if (newSpots.length > 60) {
         newSpots.removeRange(0, newSpots.length - 60);
       }
@@ -160,26 +204,21 @@ class _SensorBottomSheetState extends ConsumerState<_SensorBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    // Listen to real-time updates and move the plot
     ref.listen<AsyncValue<List<SensorReading>>>(currentSensorsProvider(widget.sensor.subsystem), (prev, next) {
       if (next.hasValue && next.value != null && !_isLoading) {
         try {
           final updatedSensor = next.value!.firstWhere((s) => s.id == widget.sensor.id);
-          // Update the spots when a new tick is received
           setState(() {
             _currentValue = updatedSensor.value;
             _updateStats(_currentValue);
             _spots.add(FlSpot(_tick.toDouble(), _currentValue));
             _tick++;
             
-            // Sliding window of 60 items
             if (_spots.length > 60) {
               _spots.removeAt(0);
             }
           });
-        } catch (_) {
-          // Sensor not updated in this tick
-        }
+        } catch (_) {}
       }
     });
 
@@ -189,9 +228,44 @@ class _SensorBottomSheetState extends ConsumerState<_SensorBottomSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            widget.sensor.metric.toUpperCase(),
-            style: const TextStyle(fontSize: 20, color: Colors.grey),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                widget.sensor.metric.toUpperCase(),
+                style: const TextStyle(fontSize: 20, color: Colors.grey),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: widget.sensor.status == 'normal' 
+                      ? Colors.green.withOpacity(0.2) 
+                      : widget.sensor.status == 'warning' 
+                          ? Colors.orange.withOpacity(0.2) 
+                          : Colors.red.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: widget.sensor.status == 'normal' 
+                        ? Colors.green 
+                        : widget.sensor.status == 'warning' 
+                            ? Colors.orange 
+                            : Colors.red,
+                  )
+                ),
+                child: Text(
+                  widget.sensor.status.toUpperCase(),
+                  style: TextStyle(
+                    color: widget.sensor.status == 'normal' 
+                        ? Colors.greenAccent 
+                        : widget.sensor.status == 'warning' 
+                            ? Colors.orangeAccent 
+                            : Colors.redAccent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold
+                  ),
+                ),
+              )
+            ],
           ),
           const SizedBox(height: 8),
           Text(
@@ -270,4 +344,3 @@ class _SensorBottomSheetState extends ConsumerState<_SensorBottomSheet> {
     );
   }
 }
-

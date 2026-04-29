@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
 import '../providers/providers.dart';
 import '../models/models.dart';
 
@@ -14,6 +14,12 @@ class AlertsScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Active Alerts'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () => context.push('/settings'),
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -29,23 +35,29 @@ class AlertsScreen extends ConsumerWidget {
       data: (alerts) {
         if (alerts.isEmpty) {
           return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: ListView(
+              shrinkWrap: true,
               children: [
-                Icon(Icons.check_circle, color: Colors.greenAccent[400], size: 80),
-                const SizedBox(height: 16),
-                const Text(
-                  'All systems normal',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.greenAccent[400], size: 80),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'All systems normal',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text('No active alerts at this time.', style: TextStyle(color: Colors.grey)),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                const Text('No active alerts at this time.', style: TextStyle(color: Colors.grey)),
               ],
             ),
           );
         }
 
         return ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.symmetric(vertical: 8),
           itemCount: alerts.length,
           itemBuilder: (context, index) {
@@ -62,7 +74,7 @@ class AlertsScreen extends ConsumerWidget {
   }
 
   Widget _buildAlertCard(BuildContext context, WidgetRef ref, Alert alert) {
-    final isCritical = alert.type == 'critical';
+    final isCritical = alert.type.contains('critical') || alert.type.contains('fault') || alert.type.contains('missing');
     final color = isCritical ? Colors.redAccent : Colors.orangeAccent;
     final Duration duration = DateTime.now().difference(alert.firedAt);
     
@@ -71,6 +83,31 @@ class AlertsScreen extends ConsumerWidget {
       timeAgo = '${duration.inMinutes}m ago';
     } else {
       timeAgo = '${duration.inHours}h ${duration.inMinutes % 60}m ago';
+    }
+
+    IconData getIconForType(String type) {
+      switch (type) {
+        case 'critical_threshold':
+        case 'critical':
+          return Icons.cancel;
+        case 'warning_threshold':
+        case 'warning':
+          return Icons.warning_amber_rounded;
+        case 'sensor_fault':
+          return Icons.sensors_off;
+        case 'sensor_missing':
+          return Icons.question_mark;
+        case 'rate_of_change':
+          return Icons.trending_up;
+        case 'sustained_deviation':
+          return Icons.timeline;
+        default:
+          return Icons.info_outline;
+      }
+    }
+
+    String getLabelForType(String type) {
+      return type.replaceAll('_', ' ').toUpperCase();
     }
 
     return Card(
@@ -95,13 +132,13 @@ class AlertsScreen extends ConsumerWidget {
                 Row(
                   children: [
                     Icon(
-                      isCritical ? Icons.cancel : Icons.warning,
+                      getIconForType(alert.type),
                       color: color,
                       size: 20,
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      alert.type.toUpperCase(),
+                      getLabelForType(alert.type),
                       style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12),
                     ),
                   ],
@@ -131,21 +168,22 @@ class AlertsScreen extends ConsumerWidget {
                     children: [
                       const Text('Current Value', style: TextStyle(color: Colors.grey, fontSize: 12)),
                       Text(
-                        alert.currentValue.toStringAsFixed(2),
+                        '${alert.currentValue.toStringAsFixed(2)}${alert.unit}',
                         style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                     ],
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Text('Threshold', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                      Text(
-                        alert.threshold.toStringAsFixed(2),
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                    ],
-                  ),
+                  if (alert.threshold > 0)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const Text('Threshold', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        Text(
+                          '${alert.threshold.toStringAsFixed(2)}${alert.unit}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),

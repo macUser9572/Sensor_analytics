@@ -7,16 +7,37 @@ export default {
   theme: {
     extend: {
       colors: {
-        normal: '#22c55e',
-        warning: '#f59e0b',
-        critical: '#ef4444',
+        industrial: {
+          bg: '#000000',
+          panel: '#111111',
+          border: '#333333',
+        },
+        accent: {
+          cyan: '#00e5ff',
+          hover: '#00b3cc',
+        },
+        status: {
+          live: '#00e676',
+          warning: '#ffab00',
+          critical: '#ff1744',
+          uncertain: '#ffeb3b',
+          fault: '#9e9e9e',
+        },
+        // Legacy aliases for old component compat
         dashboard: {
-          bg: '#0f172a',
-          card: '#1e293b',
-          border: '#334155',
-          textMain: '#f1f5f9',
-          textMuted: '#94a3b8'
-        }
+          bg: '#000000',
+          card: '#111111',
+          border: '#333333',
+          textMain: '#e5e7eb',
+          textMuted: '#6b7280',
+        },
+        critical: '#ff1744',
+        warning: '#ffab00',
+        normal: '#00e676',
+      },
+      fontFamily: {
+        mono: ['"Share Tech Mono"', 'monospace'],
+        sans: ['"Rajdhani"', 'sans-serif'],
       }
     },
   },

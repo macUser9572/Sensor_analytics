@@ -34,7 +34,8 @@ class NotificationService {
   }
 
   Future<void> showAlertNotification(Alert alert) async {
-    if (alert.type != 'critical') return;
+    final triggers = ['critical_threshold', 'sensor_fault', 'sensor_missing', 'critical'];
+    if (!triggers.contains(alert.type)) return;
 
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
@@ -52,7 +53,7 @@ class NotificationService {
     await _flutterLocalNotificationsPlugin.show(
       alert.id.hashCode,
       'CRITICAL: ${alert.subsystem}',
-      '${alert.metric} breached threshold! Value: ${alert.currentValue.toStringAsFixed(1)}',
+      '${alert.metric}: ${alert.currentValue.toStringAsFixed(1)}${alert.unit} — ${alert.type}',
       platformChannelSpecifics,
       payload: 'alert_${alert.id}',
     );
