@@ -15,7 +15,7 @@ from app.config import settings
 # ── Async engine ────────────────────────────────────────────
 # Creates a connection pool to TimescaleDB using asyncpg.
 engine = create_async_engine(
-    settings.database_url,
+    settings.db_url(),
     echo=settings.app_debug,   # log SQL in dev mode
     pool_size=20,              # suitable for 500-sensor workload
     max_overflow=10,

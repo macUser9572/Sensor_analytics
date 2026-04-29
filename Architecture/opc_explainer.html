@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OPC-DA vs OPC-UA — Complete Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#08090d;
+  --bg2:#0f1117;
+  --bg3:#161820;
+  --da-color:#f97316;
+  --da-dim:rgba(249,115,22,0.12);
+  --da-glow:rgba(249,115,22,0.35);
+  --ua-color:#06b6d4;
+  --ua-dim:rgba(6,182,212,0.12);
+  --ua-glow:rgba(6,182,212,0.35);
+  --green:#22d3a0;
+  --red:#f43f5e;
+  --yellow:#fbbf24;
+  --text:#dde6f0;
+  --text-dim:#5a7080;
+  --border:rgba(100,140,160,0.12);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(6,182,212,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(6,182,212,0.02) 1px,transparent 1px);background-size:60px 60px;pointer-events:none;z-index:0;}
+
+/* ── NAV ── */
+nav{position:sticky;top:0;z-index:100;background:rgba(8,9,13,0.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 40px;display:flex;align-items:center;gap:0;}
+.nav-logo{font-family:'IBM Plex Mono',monospace;font-size:13px;color:#fff;letter-spacing:2px;padding:16px 0;margin-right:40px;border-right:1px solid var(--border);padding-right:40px;}
+.nav-tabs{display:flex;gap:0;}
+.nav-tab{padding:18px 20px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--text-dim);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s;font-weight:500;}
+.nav-tab:hover{color:var(--text);}
+.nav-tab.active{color:var(--ua-color);border-bottom-color:var(--ua-color);}
+
+/* ── SECTIONS ── */
+section{position:relative;z-index:1;}
+.section-hidden{display:none;}
+
+/* ── HERO ── */
+.hero{padding:60px 40px 40px;max-width:1100px;margin:0 auto;}
+.hero-title{font-size:13px;letter-spacing:3px;color:var(--text-dim);text-transform:uppercase;font-family:'IBM Plex Mono',monospace;margin-bottom:16px;}
+.hero-h{font-size:42px;font-weight:700;line-height:1.15;margin-bottom:20px;}
+.hero-h .da{color:var(--da-color);}
+.hero-h .ua{color:var(--ua-color);}
+.hero-desc{font-size:15px;line-height:1.8;color:rgba(221,230,240,0.65);max-width:680px;margin-bottom:40px;}
+
+/* ── WHAT IS CARDS ── */
+.what-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:1100px;margin:0 auto 60px;padding:0 40px;}
+.what-card{border-radius:14px;padding:28px;border:1px solid;position:relative;overflow:hidden;}
+.what-card.da{border-color:rgba(249,115,22,0.3);background:linear-gradient(135deg,rgba(249,115,22,0.06) 0%,var(--bg2) 60%);}
+.what-card.ua{border-color:rgba(6,182,212,0.3);background:linear-gradient(135deg,rgba(6,182,212,0.06) 0%,var(--bg2) 60%);}
+.what-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.what-card.da::before{background:var(--da-color);}
+.what-card.ua::before{background:var(--ua-color);}
+.wc-year{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;opacity:0.5;margin-bottom:10px;}
+.wc-name{font-size:22px;font-weight:700;margin-bottom:6px;}
+.wc-full{font-size:11px;letter-spacing:1px;opacity:0.5;font-family:'IBM Plex Mono',monospace;margin-bottom:16px;}
+.wc-desc{font-size:13px;line-height:1.8;opacity:0.7;margin-bottom:20px;}
+.wc-tags{display:flex;flex-wrap:wrap;gap:6px;}
+.wc-tag{font-size:10px;padding:4px 10px;border-radius:20px;font-family:'IBM Plex Mono',monospace;letter-spacing:0.5px;}
+.wc-tag.da{background:rgba(249,115,22,0.12);color:var(--da-color);border:1px solid rgba(249,115,22,0.25);}
+.wc-tag.ua{background:rgba(6,182,212,0.12);color:var(--ua-color);border:1px solid rgba(6,182,212,0.25);}
+.wc-tag.bad{background:rgba(244,63,94,0.1);color:var(--red);border:1px solid rgba(244,63,94,0.2);}
+.wc-tag.good{background:rgba(34,211,160,0.1);color:var(--green);border:1px solid rgba(34,211,160,0.2);}
+
+/* ── SECTION TITLES ── */
+.sec-header{max-width:1100px;margin:0 auto;padding:0 40px 24px;}
+.sec-label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--text-dim);text-transform:uppercase;margin-bottom:8px;}
+.sec-title{font-size:26px;font-weight:700;}
+.sec-sub{font-size:13px;color:rgba(221,230,240,0.5);margin-top:6px;line-height:1.6;}
+
+/* ── FLOW DIAGRAMS ── */
+.flows{max-width:1100px;margin:0 auto;padding:0 40px 60px;display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+.flow-box{border-radius:14px;border:1px solid;overflow:hidden;}
+.flow-box.da{border-color:rgba(249,115,22,0.25);}
+.flow-box.ua{border-color:rgba(6,182,212,0.25);}
+.flow-header{padding:16px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);}
+.flow-header.da{background:rgba(249,115,22,0.06);}
+.flow-header.ua{background:rgba(6,182,212,0.06);}
+.fh-dot{width:10px;height:10px;border-radius:50%;}
+.fh-dot.da{background:var(--da-color);box-shadow:0 0 8px var(--da-glow);}
+.fh-dot.ua{background:var(--ua-color);box-shadow:0 0 8px var(--ua-glow);}
+.fh-title{font-weight:600;font-size:14px;letter-spacing:0.5px;}
+.fh-badge{margin-left:auto;font-size:9px;font-family:'IBM Plex Mono',monospace;padding:3px 8px;border-radius:3px;}
+.fh-badge.da{background:rgba(249,115,22,0.15);color:var(--da-color);}
+.fh-badge.ua{background:rgba(6,182,212,0.15);color:var(--ua-color);}
+
+/* ── ANIMATED FLOW CANVAS ── */
+.flow-canvas-wrap{padding:20px;background:var(--bg3);position:relative;}
+canvas.flow-anim{width:100%;display:block;}
+
+/* ── STEP NODES ── */
+.flow-steps{padding:16px 20px;}
+.step{display:flex;gap:12px;margin-bottom:12px;align-items:flex-start;}
+.step:last-child{margin-bottom:0;}
+.step-num{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;margin-top:2px;font-family:'IBM Plex Mono',monospace;}
+.step-num.da{background:rgba(249,115,22,0.2);color:var(--da-color);border:1px solid rgba(249,115,22,0.3);}
+.step-num.ua{background:rgba(6,182,212,0.2);color:var(--ua-color);border:1px solid rgba(6,182,212,0.3);}
+.step-body{}
+.step-title{font-size:12px;font-weight:600;margin-bottom:3px;}
+.step-desc{font-size:11px;color:rgba(221,230,240,0.5);line-height:1.6;}
+
+/* ── COMPARISON TABLE ── */
+.compare-wrap{max-width:1100px;margin:0 auto;padding:0 40px 60px;}
+.compare-table{width:100%;border-collapse:collapse;border-radius:12px;overflow:hidden;border:1px solid var(--border);}
+.compare-table thead tr{background:var(--bg3);}
+.compare-table th{padding:14px 20px;text-align:left;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);font-weight:500;border-bottom:1px solid var(--border);}
+.compare-table th.da-h{color:var(--da-color);}
+.compare-table th.ua-h{color:var(--ua-color);}
+.compare-table td{padding:13px 20px;font-size:12px;border-bottom:1px solid rgba(100,140,160,0.06);vertical-align:top;line-height:1.6;}
+.compare-table tr:last-child td{border-bottom:none;}
+.compare-table tr:hover td{background:rgba(255,255,255,0.015);}
+.td-key{color:rgba(221,230,240,0.4);font-weight:500;}
+.td-da{color:rgba(249,115,22,0.85);}
+.td-ua{color:rgba(6,182,212,0.85);}
+.badge-good{display:inline-block;background:rgba(34,211,160,0.12);color:var(--green);border:1px solid rgba(34,211,160,0.2);font-size:9px;padding:2px 7px;border-radius:3px;font-family:'IBM Plex Mono',monospace;}
+.badge-bad{display:inline-block;background:rgba(244,63,94,0.1);color:var(--red);border:1px solid rgba(244,63,94,0.2);font-size:9px;padding:2px 7px;border-radius:3px;font-family:'IBM Plex Mono',monospace;}
+
+/* ── YOUR PROJECT SECTION ── */
+.project-wrap{max-width:1100px;margin:0 auto;padding:0 40px 60px;}
+.project-arch{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:32px;margin-bottom:24px;position:relative;overflow:hidden;}
+.project-arch::before{content:'YOUR PROJECT';position:absolute;top:16px;right:20px;font-size:9px;letter-spacing:2px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;}
+.arch-flow{display:flex;align-items:center;flex-wrap:wrap;gap:0;}
+.arch-node{display:flex;flex-direction:column;align-items:center;text-align:center;}
+.arch-box{padding:12px 16px;border-radius:10px;font-size:12px;font-weight:600;white-space:nowrap;border:1px solid;margin-bottom:4px;}
+.arch-box.sim{background:rgba(139,92,246,0.1);border-color:rgba(139,92,246,0.3);color:#a78bfa;}
+.arch-box.opc-s{background:rgba(249,115,22,0.1);border-color:rgba(249,115,22,0.3);color:var(--da-color);}
+.arch-box.opc-c{background:rgba(6,182,212,0.1);border-color:rgba(6,182,212,0.3);color:var(--ua-color);}
+.arch-box.redis{background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.3);color:#f87171;}
+.arch-box.api{background:rgba(34,211,160,0.1);border-color:rgba(34,211,160,0.3);color:var(--green);}
+.arch-box.mobile{background:rgba(251,191,36,0.1);border-color:rgba(251,191,36,0.3);color:var(--yellow);}
+.arch-label{font-size:9px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;letter-spacing:0.5px;}
+.arch-arrow{display:flex;flex-direction:column;align-items:center;padding:0 8px;gap:4px;}
+.arch-arrow-line{width:40px;height:2px;background:linear-gradient(90deg,rgba(6,182,212,0.3),rgba(6,182,212,0.7));}
+.arch-arrow-label{font-size:9px;color:var(--ua-color);font-family:'IBM Plex Mono',monospace;white-space:nowrap;}
+.arch-arrow-head{font-size:10px;color:var(--ua-color);}
+
+/* ── SUBSCRIPTION EXPLAINER ── */
+.sub-wrap{max-width:1100px;margin:0 auto;padding:0 40px 60px;}
+.sub-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+.sub-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;}
+.sub-title{font-size:14px;font-weight:600;margin-bottom:8px;}
+.sub-desc{font-size:12px;line-height:1.7;color:rgba(221,230,240,0.55);margin-bottom:16px;}
+.sub-timeline{position:relative;padding-left:16px;}
+.sub-timeline::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--ua-color),transparent);}
+.tl-item{display:flex;gap:10px;margin-bottom:12px;align-items:flex-start;}
+.tl-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px;margin-left:-20px;}
+.tl-dot.pulse{animation:tl-pulse 1.5s ease-in-out infinite;}
+@keyframes tl-pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.4);}}
+.tl-time{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-dim);width:32px;flex-shrink:0;}
+.tl-text{font-size:11px;line-height:1.6;color:var(--text);}
+.tl-text .hi{font-weight:600;}
+
+/* ── CODE BLOCK ── */
+.code-wrap{max-width:1100px;margin:0 auto;padding:0 40px 60px;}
+.code-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:0;}
+.code-tab{padding:12px 20px;font-size:11px;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;cursor:pointer;color:var(--text-dim);border-bottom:2px solid transparent;transition:all 0.2s;}
+.code-tab.active{color:var(--ua-color);border-bottom-color:var(--ua-color);}
+.code-block{background:var(--bg3);border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding:24px;font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.9;overflow-x:auto;white-space:pre;}
+.code-block{display:none;}
+.code-block.active{display:block;}
+.kw{color:#c792ea;}
+.fn{color:var(--ua-color);}
+.str{color:#c3e88d;}
+.cm{color:#546e7a;}
+.num{color:var(--da-color);}
+.cl{color:#ffcb6b;}
+
+/* ── VERDICT ── */
+.verdict{max-width:1100px;margin:0 auto;padding:0 40px 80px;}
+.verdict-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;}
+.v-card{border-radius:14px;padding:24px;border:1px solid;position:relative;}
+.v-card.da{border-color:rgba(249,115,22,0.25);background:var(--bg2);}
+.v-card.ua{border-color:rgba(6,182,212,0.25);background:var(--bg2);}
+.v-head{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+.v-icon{font-size:24px;}
+.v-name{font-size:16px;font-weight:700;}
+.v-items{display:flex;flex-direction:column;gap:8px;}
+.v-item{display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.6;}
+.v-item::before{content:'→';flex-shrink:0;margin-top:1px;}
+.v-card.da .v-item::before{color:var(--da-color);}
+.v-card.ua .v-item::before{color:var(--ua-color);}
+.verdict-box{background:linear-gradient(135deg,rgba(6,182,212,0.08),rgba(34,211,160,0.05));border:1px solid rgba(6,182,212,0.25);border-radius:14px;padding:28px;text-align:center;}
+.vb-title{font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--ua-color);font-family:'IBM Plex Mono',monospace;margin-bottom:12px;}
+.vb-text{font-size:15px;line-height:1.8;color:rgba(221,230,240,0.8);max-width:700px;margin:0 auto;}
+
+/* ── RESPONSIVE ── */
+@media(max-width:800px){
+  .what-grid,.flows,.compare-table thead tr th:first-child,.sub-grid,.verdict-grid{grid-template-columns:1fr;}
+  .flows{grid-template-columns:1fr;}
+  .hero-h{font-size:28px;}
+  .arch-flow{gap:8px;}
+}
+
+/* Entry animation */
+.fade-in{animation:fi 0.5s ease both;}
+@keyframes fi{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">OPC GUIDE</div>
+  <div class="nav-tabs">
+    <div class="nav-tab active" onclick="switchTab('overview')">Overview</div>
+    <div class="nav-tab" onclick="switchTab('da-flow')">OPC-DA Flow</div>
+    <div class="nav-tab" onclick="switchTab('ua-flow')">OPC-UA Flow</div>
+    <div class="nav-tab" onclick="switchTab('compare')">Comparison</div>
+    <div class="nav-tab" onclick="switchTab('subscription')">Subscriptions</div>
+    <div class="nav-tab" onclick="switchTab('code')">Code</div>
+    <div class="nav-tab" onclick="switchTab('project')">Your Project</div>
+  </div>
+</nav>
+
+<!-- ═══════════════════ OVERVIEW ═══════════════════ -->
+<section id="sec-overview">
+<div class="hero fade-in">
+  <div class="hero-title">Industrial Data Protocol Guide</div>
+  <div class="hero-h">Understanding <span class="da">OPC-DA</span><br>vs <span class="ua">OPC-UA</span></div>
+  <div class="hero-desc">OPC stands for <strong>Open Platform Communications</strong> — the standard way industrial systems (like BHEL's DCS) expose sensor data to other software. Think of it as the USB standard for factories. There are two generations: the old one (DA) and the modern one (UA). You need to understand both because your client may be using either.</div>
+</div>
+
+<div class="what-grid fade-in">
+  <div class="what-card da">
+    <div class="wc-year">BORN IN 1996</div>
+    <div class="wc-name" style="color:var(--da-color);">OPC-DA</div>
+    <div class="wc-full">DATA ACCESS — THE OLD STANDARD</div>
+    <div class="wc-desc">Built on Microsoft's COM/DCOM technology. Think of COM like a very old Windows-only plugin system. OPC-DA was the first standard that let SCADA software read sensor values from DCS systems. It works — but it's tied completely to Windows and has serious network limitations.</div>
+    <div class="wc-tags">
+      <span class="wc-tag da">Windows Only</span>
+      <span class="wc-tag da">COM/DCOM</span>
+      <span class="wc-tag da">LAN Friendly</span>
+      <span class="wc-tag bad">Firewall Problems</span>
+      <span class="wc-tag bad">No Security</span>
+      <span class="wc-tag bad">Legacy</span>
+    </div>
+  </div>
+  <div class="what-card ua">
+    <div class="wc-year">BORN IN 2008</div>
+    <div class="wc-name" style="color:var(--ua-color);">OPC-UA</div>
+    <div class="wc-full">UNIFIED ARCHITECTURE — THE MODERN STANDARD</div>
+    <div class="wc-desc">A complete rewrite. No more Windows dependency. Runs on Linux, Raspberry Pi, embedded systems — anything. Uses standard TCP sockets instead of COM. Has built-in security (TLS encryption + certificates). Has subscriptions — meaning the server pushes data to you instead of you polling. The industry is moving entirely to UA.</div>
+    <div class="wc-tags">
+      <span class="wc-tag ua">Cross-Platform</span>
+      <span class="wc-tag ua">TCP/IP</span>
+      <span class="wc-tag ua">Built-in Security</span>
+      <span class="wc-tag good">Subscriptions</span>
+      <span class="wc-tag good">Firewall Friendly</span>
+      <span class="wc-tag good">Python Native</span>
+    </div>
+  </div>
+</div>
+
+<!-- Simple analogy -->
+<div style="max-width:1100px;margin:0 auto;padding:0 40px 60px;">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:28px;display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+    <div>
+      <div style="font-size:11px;letter-spacing:2px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;margin-bottom:10px;">SIMPLE ANALOGY</div>
+      <div style="font-size:14px;font-weight:600;color:var(--da-color);margin-bottom:8px;">OPC-DA is like a fax machine</div>
+      <div style="font-size:13px;line-height:1.8;color:rgba(221,230,240,0.6);">It works. People used it for 30 years. But it only works in one building (Windows), needs special phone lines (DCOM ports), and has no security. Everyone is slowly replacing their fax machines.</div>
+    </div>
+    <div>
+      <div style="font-size:11px;letter-spacing:2px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;margin-bottom:10px;">SIMPLE ANALOGY</div>
+      <div style="font-size:14px;font-weight:600;color:var(--ua-color);margin-bottom:8px;">OPC-UA is like WhatsApp</div>
+      <div style="font-size:13px;line-height:1.8;color:rgba(221,230,240,0.6);">Works on any device, any OS. End-to-end encrypted. You can subscribe to a group and get messages pushed to you automatically. Works through firewalls. That's the UA model — modern, secure, push-based.</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════ DA FLOW ═══════════════════ -->
+<section id="sec-da-flow" class="section-hidden">
+<div style="padding:40px 0 0;">
+  <div class="sec-header">
+    <div class="sec-label">OPC-DA Detailed Flow</div>
+    <div class="sec-title" style="color:var(--da-color);">How OPC-DA Actually Works</div>
+    <div class="sec-sub">OPC-DA uses Microsoft's COM/DCOM (Distributed Component Object Model). Your software calls a Windows component which talks to the DCS. Imagine it as a chain of Windows DLL calls across the network.</div>
+  </div>
+
+  <div style="max-width:1100px;margin:0 auto;padding:0 40px 40px;">
+    <!-- Full DA Flow -->
+    <div style="background:var(--bg2);border:1px solid rgba(249,115,22,0.2);border-radius:14px;overflow:hidden;margin-bottom:24px;">
+      <div style="background:rgba(249,115,22,0.06);padding:16px 24px;border-bottom:1px solid rgba(249,115,22,0.15);display:flex;align-items:center;gap:10px;">
+        <div style="width:10px;height:10px;border-radius:50%;background:var(--da-color);box-shadow:0 0 8px var(--da-glow);"></div>
+        <span style="font-weight:600;">OPC-DA Complete Data Flow</span>
+        <span style="margin-left:auto;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--da-color);">WINDOWS ONLY</span>
+      </div>
+
+      <!-- Animated flow diagram using canvas -->
+      <canvas id="da-canvas" height="200" style="width:100%;display:block;background:var(--bg3);padding:0;"></canvas>
+
+      <div style="padding:24px;display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <div>
+          <div style="font-size:11px;letter-spacing:2px;color:var(--da-color);font-family:'IBM Plex Mono',monospace;margin-bottom:14px;">STEP BY STEP</div>
+          <div class="step"><div class="step-num da">1</div><div class="step-body"><div class="step-title">DCS System Has OPC-DA Server</div><div class="step-desc">The plant's DCS (ABB, Siemens, Honeywell) has an OPC-DA server installed on a Windows machine. This server exposes all sensor values as "tags" — addressable items like "Plant.Turbine.Bearing1.Temperature"</div></div></div>
+          <div class="step"><div class="step-num da">2</div><div class="step-body"><div class="step-title">Your OPC Client Calls via DCOM</div><div class="step-desc">Your client code (also on Windows) makes a DCOM call — like a remote function call — to connect to the OPC server. Windows handles the network transport using random high-numbered ports (135 + random). This is why firewalls hate OPC-DA.</div></div></div>
+          <div class="step"><div class="step-num da">3</div><div class="step-body"><div class="step-title">Client Reads Tags by Polling</div><div class="step-desc">Your code says "give me the value of tag T001, T002, T003..." every N seconds. The server responds with current values. This is synchronous polling — you ask, it answers. There is no push mechanism.</div></div></div>
+          <div class="step"><div class="step-num da">4</div><div class="step-body"><div class="step-title">You Parse and Forward</div><div class="step-desc">Your OPC client code reads the values and converts them into your internal format, then sends to Redis.</div></div></div>
+        </div>
+        <div>
+          <div style="font-size:11px;letter-spacing:2px;color:var(--red);font-family:'IBM Plex Mono',monospace;margin-bottom:14px;">THE PROBLEMS</div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="background:rgba(244,63,94,0.06);border:1px solid rgba(244,63,94,0.15);border-radius:8px;padding:14px;">
+              <div style="font-size:12px;font-weight:600;color:var(--red);margin-bottom:4px;">🔥 Windows Only</div>
+              <div style="font-size:11px;line-height:1.7;color:rgba(221,230,240,0.55);">COM/DCOM is a Windows technology. Your OPC client machine MUST be Windows. You cannot run this on Linux, Docker, or a Mac. This locks your Machine 1 to Windows Server.</div>
+            </div>
+            <div style="background:rgba(244,63,94,0.06);border:1px solid rgba(244,63,94,0.15);border-radius:8px;padding:14px;">
+              <div style="font-size:12px;font-weight:600;color:var(--red);margin-bottom:4px;">🔥 Firewall Nightmare</div>
+              <div style="font-size:11px;line-height:1.7;color:rgba(221,230,240,0.55);">DCOM uses port 135 to negotiate, then picks a RANDOM high port (1024–65535) for actual data. You cannot predict which port to open. Either disable the firewall or install special DCOM tunnel software.</div>
+            </div>
+            <div style="background:rgba(244,63,94,0.06);border:1px solid rgba(244,63,94,0.15);border-radius:8px;padding:14px;">
+              <div style="font-size:12px;font-weight:600;color:var(--red);margin-bottom:4px;">🔥 No Security</div>
+              <div style="font-size:11px;line-height:1.7;color:rgba(221,230,240,0.55);">No encryption. No certificates. Authentication is Windows user accounts only. Not suitable for anything beyond a tightly controlled local network.</div>
+            </div>
+            <div style="background:rgba(244,63,94,0.06);border:1px solid rgba(244,63,94,0.15);border-radius:8px;padding:14px;">
+              <div style="font-size:12px;font-weight:600;color:var(--red);margin-bottom:4px;">🔥 Polling Only</div>
+              <div style="font-size:11px;line-height:1.7;color:rgba(221,230,240,0.55);">You must poll at a fixed interval. All 500 sensors polled every 10 seconds whether they changed or not. Wasteful and you can't do per-sensor frequencies natively.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Middleware option -->
+    <div style="background:rgba(249,115,22,0.04);border:1px solid rgba(249,115,22,0.15);border-radius:12px;padding:20px;">
+      <div style="font-size:12px;font-weight:600;color:var(--da-color);margin-bottom:8px;">If BHEL has OPC-DA — you need this middleware bridge</div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div style="background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.25);border-radius:8px;padding:10px 14px;font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--da-color);">DCS OPC-DA Server<br><span style="opacity:0.5">Windows Machine</span></div>
+        <div style="color:var(--da-color);font-size:18px;">→</div>
+        <div style="background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.25);border-radius:8px;padding:10px 14px;font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--yellow);">Kepware / Matrikon<br><span style="opacity:0.5">DA → UA Bridge</span></div>
+        <div style="color:var(--ua-color);font-size:18px;">→</div>
+        <div style="background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.25);border-radius:8px;padding:10px 14px;font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--ua-color);">Your OPC-UA Client<br><span style="opacity:0.5">Python / Linux ✓</span></div>
+        <div style="color:var(--ua-color);font-size:18px;">→</div>
+        <div style="background:rgba(34,211,160,0.1);border:1px solid rgba(34,211,160,0.25);border-radius:8px;padding:10px 14px;font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--green);">Redis → FastAPI<br><span style="opacity:0.5">Your Pipeline</span></div>
+      </div>
+      <div style="font-size:11px;color:rgba(221,230,240,0.45);margin-top:12px;line-height:1.7;">Kepware or Matrikon act as a translator — they expose OPC-DA data as OPC-UA. Your Python code then talks OPC-UA regardless. This is the standard enterprise solution when legacy DA systems must be integrated with modern software.</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════ UA FLOW ═══════════════════ -->
+<section id="sec-ua-flow" class="section-hidden">
+<div style="padding:40px 0 0;">
+  <div class="sec-header">
+    <div class="sec-label">OPC-UA Detailed Flow</div>
+    <div class="sec-title" style="color:var(--ua-color);">How OPC-UA Actually Works</div>
+    <div class="sec-sub">OPC-UA uses plain TCP sockets on a fixed port (default 4840). Think of it as a very structured API over TCP — no Windows dependency, no random ports, encrypted by default.</div>
+  </div>
+
+  <div style="max-width:1100px;margin:0 auto;padding:0 40px 40px;">
+    <div style="background:var(--bg2);border:1px solid rgba(6,182,212,0.2);border-radius:14px;overflow:hidden;margin-bottom:24px;">
+      <div style="background:rgba(6,182,212,0.06);padding:16px 24px;border-bottom:1px solid rgba(6,182,212,0.12);display:flex;align-items:center;gap:10px;">
+        <div style="width:10px;height:10px;border-radius:50%;background:var(--ua-color);box-shadow:0 0 8px var(--ua-glow);"></div>
+        <span style="font-weight:600;">OPC-UA Complete Data Flow</span>
+        <span style="margin-left:auto;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--ua-color);">CROSS-PLATFORM · PORT 4840</span>
+      </div>
+
+      <canvas id="ua-canvas" height="200" style="width:100%;display:block;background:var(--bg3);"></canvas>
+
+      <div style="padding:24px;display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <div>
+          <div style="font-size:11px;letter-spacing:2px;color:var(--ua-color);font-family:'IBM Plex Mono',monospace;margin-bottom:14px;">STEP BY STEP</div>
+          <div class="step"><div class="step-num ua">1</div><div class="step-body"><div class="step-title">Connect to OPC-UA Server</div><div class="step-desc">Your Python code connects to opc.tcp://server-ip:4840. One fixed port. Works through firewalls. The server could be on the DCS machine, a separate gateway, or your simulator. TLS handshake happens here — certificates are exchanged.</div></div></div>
+          <div class="step"><div class="step-num ua">2</div><div class="step-body"><div class="step-title">Browse the Address Space</div><div class="step-desc">The server exposes an "address space" — a tree of nodes. You can browse it like a folder structure: Root → Objects → Plant → Turbine → Bearing1 → Temperature. Each node has a NodeId — a unique identifier you use to reference it.</div></div></div>
+          <div class="step"><div class="step-num ua">3</div><div class="step-body"><div class="step-title">Create a Subscription</div><div class="step-desc">Instead of polling, you create a Subscription and add MonitoredItems to it. Each MonitoredItem is one sensor node. You tell the server: "tell me when this value changes" or "tell me every 10 seconds". The server does the work — you wait for pushes.</div></div></div>
+          <div class="step"><div class="step-num ua">4</div><div class="step-body"><div class="step-title">Server Pushes Data to You</div><div class="step-desc">When a sensor value changes beyond the configured deadband, or when the interval fires — the OPC-UA server sends a Publish notification to your client. Your DataChangeHandler fires with the new value. You publish to Redis immediately.</div></div></div>
+          <div class="step"><div class="step-num ua">5</div><div class="step-body"><div class="step-title">Per-Sensor Configuration</div><div class="step-desc">T001 bearing temp can have a 10s interval + 0.5°C deadband. B012 steam pressure can have 5s interval + 0.1bar deadband. G005 frequency can have 2s interval + 0.01Hz deadband. Each sensor is independently configured.</div></div></div>
+        </div>
+        <div>
+          <div style="font-size:11px;letter-spacing:2px;color:var(--green);font-family:'IBM Plex Mono',monospace;margin-bottom:14px;">THE ADVANTAGES</div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="background:rgba(34,211,160,0.05);border:1px solid rgba(34,211,160,0.15);border-radius:8px;padding:14px;">
+              <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:4px;">✓ Cross-Platform</div>
+              <div style="font-size:11px;line-height:1.7;color:rgba(221,230,240,0.55);">Python library asyncua runs on Linux, Windows, Mac. Your Machine 1 can be any OS. Docker-friendly. No Windows Server licence needed.</div>
+            </div>
+            <div style="background:rgba(34,211,160,0.05);border:1px solid rgba(34,211,160,0.15);border-radius:8px;padding:14px;">
+              <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:4px;">✓ Single Fixed Port</div>
+              <div style="font-size:11px;line-height:1.7;color:rgba(221,230,240,0.55);">Always port 4840 (or 4843 for encrypted). One firewall rule. No random ports. IT teams at plants love this.</div>
+            </div>
+            <div style="background:rgba(34,211,160,0.05);border:1px solid rgba(34,211,160,0.15);border-radius:8px;padding:14px;">
+              <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:4px;">✓ Push-Based Subscriptions</div>
+              <div style="font-size:11px;line-height:1.7;color:rgba(221,230,240,0.55);">Server pushes when values change. Per-sensor intervals AND deadbands. A stable temperature at 85°C generates zero network traffic until it actually moves.</div>
+            </div>
+            <div style="background:rgba(34,211,160,0.05);border:1px solid rgba(34,211,160,0.15);border-radius:8px;padding:14px;">
+              <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:4px;">✓ Built-in Security</div>
+              <div style="font-size:11px;line-height:1.7;color:rgba(221,230,240,0.55);">TLS encryption, X.509 certificates, user authentication. Suitable for industrial cybersecurity requirements which are increasingly mandated at PSU plants.</div>
+            </div>
+            <div style="background:rgba(34,211,160,0.05);border:1px solid rgba(34,211,160,0.15);border-radius:8px;padding:14px;">
+              <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:4px;">✓ Information Modelling</div>
+              <div style="font-size:11px;line-height:1.7;color:rgba(221,230,240,0.55);">Sensors aren't just values — they have metadata: engineering units, ranges, descriptions, alarm limits. All browsable from the address space. Self-describing data.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════ COMPARE ═══════════════════ -->
+<section id="sec-compare" class="section-hidden">
+<div style="padding:40px 0 0;">
+  <div class="sec-header">
+    <div class="sec-label">Side by Side</div>
+    <div class="sec-title">OPC-DA vs OPC-UA — Complete Comparison</div>
+    <div class="sec-sub">Every dimension that matters for your BHEL integration.</div>
+  </div>
+  <div class="compare-wrap">
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th style="width:22%;">Dimension</th>
+          <th class="da-h" style="width:39%;">OPC-DA</th>
+          <th class="ua-h" style="width:39%;">OPC-UA</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="td-key">Born</td><td class="td-da">1996</td><td class="td-ua">2008</td></tr>
+        <tr><td class="td-key">Full name</td><td class="td-da">OPC Data Access</td><td class="td-ua">OPC Unified Architecture</td></tr>
+        <tr><td class="td-key">Transport</td><td class="td-da">Microsoft COM / DCOM<br><span style="font-size:10px;opacity:0.6;">Windows Remote Procedure Calls</span></td><td class="td-ua">TCP/IP sockets<br><span style="font-size:10px;opacity:0.6;">Standard internet protocol</span></td></tr>
+        <tr><td class="td-key">Platform</td><td class="td-da"><span class="badge-bad">Windows Only</span></td><td class="td-ua"><span class="badge-good">Any OS</span> Linux, Windows, Mac, embedded</td></tr>
+        <tr><td class="td-key">Network port</td><td class="td-da"><span class="badge-bad">Random</span> Port 135 + random high port<br><span style="font-size:10px;opacity:0.6;">Makes firewalls impossible</span></td><td class="td-ua"><span class="badge-good">Fixed</span> Port 4840 (or 4843 encrypted)<br><span style="font-size:10px;opacity:0.6;">One firewall rule</span></td></tr>
+        <tr><td class="td-key">Security</td><td class="td-da"><span class="badge-bad">None</span> No encryption, Windows auth only</td><td class="td-ua"><span class="badge-good">Built-in</span> TLS + X.509 certificates</td></tr>
+        <tr><td class="td-key">Data access</td><td class="td-da">Polling only<br><span style="font-size:10px;opacity:0.6;">You ask every N seconds for all sensors</span></td><td class="td-ua"><span class="badge-good">Subscriptions</span><br><span style="font-size:10px;opacity:0.6;">Server pushes when value changes</span></td></tr>
+        <tr><td class="td-key">Per-sensor freq</td><td class="td-da"><span class="badge-bad">Not native</span> All sensors on same poll interval</td><td class="td-ua"><span class="badge-good">Yes</span> Each sensor has its own publishing interval + deadband</td></tr>
+        <tr><td class="td-key">Python library</td><td class="td-da">OpenOPC, pywin32<br><span style="font-size:10px;opacity:0.6;">Windows-only, poorly maintained</span></td><td class="td-ua">asyncua, python-opcua<br><span style="font-size:10px;opacity:0.6;"><span class="badge-good">Active</span> pip install asyncua</span></td></tr>
+        <tr><td class="td-key">Docker support</td><td class="td-da"><span class="badge-bad">No</span> COM cannot run in containers</td><td class="td-ua"><span class="badge-good">Yes</span> Standard Python container</td></tr>
+        <tr><td class="td-key">Machine 1 OS</td><td class="td-da">Must be Windows Server</td><td class="td-ua">Ubuntu Linux (cheaper, simpler)</td></tr>
+        <tr><td class="td-key">Metadata</td><td class="td-da">Value, quality, timestamp only</td><td class="td-ua">Value + engineering units, description, range, alarm limits — self-describing</td></tr>
+        <tr><td class="td-key">Status</td><td class="td-da">Legacy — no new development</td><td class="td-ua"><span class="badge-good">Active</span> Industry standard going forward</td></tr>
+        <tr><td class="td-key">If BHEL has this</td><td class="td-da">Need Kepware/Matrikon bridge<br><span style="font-size:10px;opacity:0.6;">DA → UA translation middleware</span></td><td class="td-ua">Connect directly with asyncua<br><span style="font-size:10px;opacity:0.6;">Clean Python integration</span></td></tr>
+        <tr><td class="td-key">Your effort</td><td class="td-da">High — Windows VM + middleware + config + COM permissions</td><td class="td-ua">Low — pip install asyncua, 50 lines of Python</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════ SUBSCRIPTIONS ═══════════════════ -->
+<section id="sec-subscription" class="section-hidden">
+<div style="padding:40px 0 0;">
+  <div class="sec-header">
+    <div class="sec-label">OPC-UA Deep Dive</div>
+    <div class="sec-title">Subscriptions — The Key Concept</div>
+    <div class="sec-sub">This is what makes OPC-UA fundamentally better for your architecture. Understanding this will let you answer BHEL's technical questions confidently.</div>
+  </div>
+
+  <div class="sub-wrap">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px;">
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;">
+        <div style="font-size:22px;margin-bottom:10px;">📋</div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Subscription</div>
+        <div style="font-size:11px;line-height:1.7;color:rgba(221,230,240,0.5);">A container you create on the OPC-UA server. Like signing up for a mailing list. One subscription can monitor hundreds of sensors. Has a publishing interval — the minimum frequency for notifications.</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;">
+        <div style="font-size:22px;margin-bottom:10px;">🎯</div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:6px;">MonitoredItem</div>
+        <div style="font-size:11px;line-height:1.7;color:rgba(221,230,240,0.5);">Each sensor you add to a subscription becomes a MonitoredItem. It has its own sampling interval (how often the server checks it) and deadband (minimum change to trigger a notification). You can have 500 MonitoredItems in one subscription.</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;">
+        <div style="font-size:22px;margin-bottom:10px;">📡</div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Deadband</div>
+        <div style="font-size:11px;line-height:1.7;color:rgba(221,230,240,0.5);">A noise filter. If you set deadband=0.5°C, the server only notifies you when the temperature changes by more than 0.5°C. A sensor sitting at 85.3°C fluctuating ±0.1°C generates zero traffic. Critical for reducing noise.</div>
+      </div>
+    </div>
+
+    <div class="sub-grid">
+      <!-- Timeline: polling vs subscription -->
+      <div class="sub-card" style="border-color:rgba(249,115,22,0.2);">
+        <div class="sub-title" style="color:var(--da-color);">OPC-DA Polling — What actually happens</div>
+        <div class="sub-desc">Every 10 seconds, your code wakes up and asks for all 500 sensor values. Whether they changed or not. Wastes network and CPU.</div>
+        <div class="sub-timeline" style="border-left-color:var(--da-color);">
+          <div class="tl-item"><div class="tl-dot" style="background:var(--da-color);"></div><div class="tl-time">t=0s</div><div class="tl-text">Poll: read all 500 sensors. T001=85.2, T002=91.0... <span class="hi">→ send all 500 to Redis</span></div></div>
+          <div class="tl-item"><div class="tl-dot" style="background:var(--da-color);opacity:0.3;"></div><div class="tl-time">t=10s</div><div class="tl-text">Poll again: T001=85.3 (barely changed), others same. <span class="hi">→ send all 500 again</span></div></div>
+          <div class="tl-item"><div class="tl-dot" style="background:var(--da-color);opacity:0.3;"></div><div class="tl-time">t=20s</div><div class="tl-text">Poll again: everything same. <span class="hi">→ send 500 unchanged values</span></div></div>
+          <div class="tl-item"><div class="tl-dot" style="background:var(--red);"></div><div class="tl-time">t=25s</div><div class="tl-text" style="color:var(--red);">T003 starts overheating but poll interval hasn't fired yet. <span class="hi">You won't know for 5 more seconds.</span></div></div>
+          <div class="tl-item"><div class="tl-dot" style="background:var(--da-color);"></div><div class="tl-time">t=30s</div><div class="tl-text">Poll: finally see T003 is critical. <span class="hi">5 second delay in detection.</span></div></div>
+        </div>
+      </div>
+
+      <!-- UA subscription timeline -->
+      <div class="sub-card" style="border-color:rgba(6,182,212,0.2);">
+        <div class="sub-title" style="color:var(--ua-color);">OPC-UA Subscriptions — What actually happens</div>
+        <div class="sub-desc">Server monitors sensors continuously. Notifies your client only when something changes or interval fires. Zero polling overhead.</div>
+        <div class="sub-timeline" style="border-left-color:var(--ua-color);">
+          <div class="tl-item"><div class="tl-dot" style="background:var(--ua-color);"></div><div class="tl-time">t=0s</div><div class="tl-text">Connected. Subscription created. 500 MonitoredItems registered. Server starts monitoring internally.</div></div>
+          <div class="tl-item"><div class="tl-dot" style="background:var(--ua-color);opacity:0.3;"></div><div class="tl-time">t=1s</div><div class="tl-text">T003 value unchanged, T001 changed by 0.3°C (below deadband). <span class="hi">→ nothing sent. Zero traffic.</span></div></div>
+          <div class="tl-item"><div class="tl-dot" style="background:var(--ua-color);opacity:0.3;"></div><div class="tl-time">t=10s</div><div class="tl-text">Interval fires for stable sensors. Small batch notification. <span class="hi">→ only changed values sent.</span></div></div>
+          <div class="tl-item"><div class="tl-dot tl-pulse" style="background:var(--red);"></div><div class="tl-time">t=25s</div><div class="tl-text" style="color:var(--green);">T003 crosses deadband. <span class="hi">Server pushes IMMEDIATELY</span> — does not wait for next interval. Alert detected at t=25s, not t=30s.</div></div>
+          <div class="tl-item"><div class="tl-dot" style="background:var(--ua-color);"></div><div class="tl-time">t=30s</div><div class="tl-text">Interval fires. Other sensors report their periodic updates.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Your architecture with subscriptions -->
+    <div style="background:rgba(6,182,212,0.05);border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;margin-top:20px;">
+      <div style="font-size:12px;font-weight:600;color:var(--ua-color);margin-bottom:16px;letter-spacing:1px;">HOW THIS MAPS TO YOUR ARCHITECTURE</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+        <div>
+          <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;">TURBINE SENSORS (T001-T120)</div>
+          <div style="background:var(--bg3);border-radius:8px;padding:12px;font-size:11px;font-family:'IBM Plex Mono',monospace;line-height:1.8;">
+            <span style="color:var(--ua-color);">sampling_interval</span> = 10s<br>
+            <span style="color:var(--ua-color);">deadband</span> = 0.5°C<br>
+            <span style="color:rgba(221,230,240,0.4);"># Critical machinery</span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;">BOILER SENSORS (B001-B100)</div>
+          <div style="background:var(--bg3);border-radius:8px;padding:12px;font-size:11px;font-family:'IBM Plex Mono',monospace;line-height:1.8;">
+            <span style="color:var(--ua-color);">sampling_interval</span> = 5s<br>
+            <span style="color:var(--ua-color);">deadband</span> = 0.2bar<br>
+            <span style="color:rgba(221,230,240,0.4);"># Pressure sensitive</span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;">GENERATOR (G001-G080)</div>
+          <div style="background:var(--bg3);border-radius:8px;padding:12px;font-size:11px;font-family:'IBM Plex Mono',monospace;line-height:1.8;">
+            <span style="color:var(--ua-color);">sampling_interval</span> = 2s<br>
+            <span style="color:var(--ua-color);">deadband</span> = 0.01Hz<br>
+            <span style="color:rgba(221,230,240,0.4);"># Frequency critical</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════ CODE ═══════════════════ -->
+<section id="sec-code" class="section-hidden">
+<div style="padding:40px 0 0;">
+  <div class="sec-header">
+    <div class="sec-label">Implementation</div>
+    <div class="sec-title">Actual Python Code</div>
+    <div class="sec-sub">Real code using the asyncua library. This is what Machine 1 runs in your architecture.</div>
+  </div>
+
+  <div class="code-wrap">
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--bg2);border-radius:12px 12px 0 0;overflow:hidden;">
+      <div class="code-tab active" onclick="switchCode('opc-server')">OPC-UA Server (Simulator)</div>
+      <div class="code-tab" onclick="switchCode('opc-client')">OPC-UA Client</div>
+      <div class="code-tab" onclick="switchCode('subscription')">Subscription Handler</div>
+      <div class="code-tab" onclick="switchCode('redis-bridge')">Redis Bridge</div>
+    </div>
+
+<pre class="code-block active" id="code-opc-server"><span class="cm"># Machine 1 — OPC-UA Server wrapping your Python Simulator
+# asyncua library: pip install asyncua
+# This exposes your simulator data as real OPC-UA nodes
+# In production: replace simulator with DCS feed</span>
+
+<span class="kw">from</span> asyncua <span class="kw">import</span> Server
+<span class="kw">from</span> asyncua.common.node <span class="kw">import</span> Node
+<span class="kw">import</span> asyncio
+
+<span class="kw">class</span> <span class="cl">OPCUAServerWrapper</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, simulator):
+        self.simulator = simulator
+        self.server = <span class="cl">Server</span>()
+        self.sensor_nodes = {}   <span class="cm"># sensor_id → OPC node</span>
+
+    <span class="kw">async def</span> <span class="fn">setup</span>(self):
+        <span class="cm"># Start OPC-UA server on port 4840</span>
+        <span class="kw">await</span> self.server.<span class="fn">init</span>()
+        self.server.<span class="fn">set_endpoint</span>(<span class="str">"opc.tcp://0.0.0.0:4840"</span>)
+        self.server.<span class="fn">set_server_name</span>(<span class="str">"BHEL Plant Simulator"</span>)
+
+        <span class="cm"># Create namespace</span>
+        ns = <span class="kw">await</span> self.server.<span class="fn">register_namespace</span>(<span class="str">"BHEL_PLANT"</span>)
+
+        <span class="cm"># Create folder structure: Root → Plant → Turbine → T001</span>
+        plant = <span class="kw">await</span> self.server.nodes.objects.<span class="fn">add_folder</span>(ns, <span class="str">"Plant"</span>)
+
+        <span class="kw">for</span> subsystem <span class="kw">in</span> [<span class="str">"Turbine"</span>, <span class="str">"Boiler"</span>, <span class="str">"Generator"</span>, <span class="str">"Cooling"</span>]:
+            folder = <span class="kw">await</span> plant.<span class="fn">add_folder</span>(ns, subsystem)
+
+            <span class="cm"># Add each sensor as a variable node</span>
+            <span class="kw">for</span> sensor <span class="kw">in</span> self.simulator.<span class="fn">get_sensors_by_subsystem</span>(subsystem):
+                node = <span class="kw">await</span> folder.<span class="fn">add_variable</span>(
+                    ns, sensor.id, sensor.baseline_value
+                )
+                <span class="cm"># Set engineering unit metadata — self-describing!</span>
+                <span class="kw">await</span> node.<span class="fn">set_writable</span>()
+                self.sensor_nodes[sensor.id] = node
+
+    <span class="kw">async def</span> <span class="fn">update_loop</span>(self):
+        <span class="cm"># Every tick: push simulator values into OPC nodes</span>
+        <span class="kw">async with</span> self.server:
+            <span class="kw">while</span> <span class="kw">True</span>:
+                readings = self.simulator.<span class="fn">tick</span>()
+                <span class="kw">for</span> reading <span class="kw">in</span> readings:
+                    node = self.sensor_nodes[reading.sensor_id]
+                    <span class="kw">await</span> node.<span class="fn">write_value</span>(reading.value)
+                <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(<span class="num">1</span>)  <span class="cm"># update every second</span></pre>
+
+<pre class="code-block" id="code-opc-client"><span class="cm"># Machine 1 — OPC-UA Client that connects to the server
+# Works for BOTH your simulator server AND real DCS
+# Just change OPC_SERVER_URL in .env</span>
+
+<span class="kw">from</span> asyncua <span class="kw">import</span> Client
+<span class="kw">import</span> asyncio, os
+
+OPC_SERVER_URL = os.<span class="fn">getenv</span>(<span class="str">"OPC_SERVER_URL"</span>, <span class="str">"opc.tcp://loopback host:4840"</span>)
+<span class="cm"># Demo:       opc.tcp://machine1-ip:4840  (your simulator)
+# Production: opc.tcp://dcs-server-ip:4840 (real DCS)
+# ONE LINE CHANGE to go from demo to production</span>
+
+<span class="kw">class</span> <span class="cl">OPCUAClient</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, data_change_handler):
+        self.handler = data_change_handler
+        self.client = <span class="cl">Client</span>(url=OPC_SERVER_URL)
+
+    <span class="kw">async def</span> <span class="fn">connect_and_subscribe</span>(self):
+        <span class="kw">async with</span> self.client:
+            <span class="cm"># Browse address space to find all sensor nodes</span>
+            sensor_nodes = <span class="kw">await</span> self.<span class="fn">_discover_sensors</span>()
+            print(<span class="str">f"Found {len(sensor_nodes)} sensor nodes"</span>)
+
+            <span class="cm"># Create ONE subscription for all sensors</span>
+            subscription = <span class="kw">await</span> self.client.<span class="fn">create_subscription</span>(
+                period=<span class="num">1000</span>,   <span class="cm"># server checks every 1s</span>
+                handler=self.handler
+            )
+
+            <span class="cm"># Add each sensor as a MonitoredItem
+            # Each sensor can have DIFFERENT sampling interval</span>
+            <span class="kw">for</span> node_id, config <span class="kw">in</span> sensor_nodes.items():
+                <span class="kw">await</span> subscription.<span class="fn">subscribe_data_change</span>(
+                    nodes=config[<span class="str">"node"</span>],
+                    sampling_interval=config[<span class="str">"interval_ms"</span>],
+                )
+
+            <span class="cm"># Keep alive — server will push data to our handler</span>
+            <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(float(<span class="str">"inf"</span>))
+
+    <span class="kw">async def</span> <span class="fn">_discover_sensors</span>(self):
+        <span class="cm"># Browse: Root → Objects → Plant → [subsystems] → sensors</span>
+        plant = <span class="kw">await</span> self.client.nodes.root.<span class="fn">get_child</span>(
+            [<span class="str">"0:Objects"</span>, <span class="str">"2:Plant"</span>]
+        )
+        sensors = {}
+        <span class="kw">for</span> subsystem_node <span class="kw">in</span> <span class="kw">await</span> plant.<span class="fn">get_children</span>():
+            <span class="kw">for</span> sensor_node <span class="kw">in</span> <span class="kw">await</span> subsystem_node.<span class="fn">get_children</span>():
+                name = (<span class="kw">await</span> sensor_node.<span class="fn">read_browse_name</span>()).Name
+                sensors[name] = {
+                    <span class="str">"node"</span>: sensor_node,
+                    <span class="str">"interval_ms"</span>: <span class="fn">get_sensor_interval</span>(name)
+                }
+        <span class="kw">return</span> sensors
+
+<span class="kw">def</span> <span class="fn">get_sensor_interval</span>(sensor_id: str) -> int:
+    <span class="cm"># Per-sensor sampling intervals (milliseconds)</span>
+    <span class="kw">if</span> sensor_id.<span class="fn">startswith</span>(<span class="str">"G"</span>):  <span class="kw">return</span> <span class="num">2000</span>   <span class="cm"># Generator: 2s</span>
+    <span class="kw">if</span> sensor_id.<span class="fn">startswith</span>(<span class="str">"B"</span>):  <span class="kw">return</span> <span class="num">5000</span>   <span class="cm"># Boiler: 5s</span>
+    <span class="kw">if</span> sensor_id.<span class="fn">startswith</span>(<span class="str">"T"</span>):  <span class="kw">return</span> <span class="num">10000</span>  <span class="cm"># Turbine: 10s</span>
+    <span class="kw">return</span> <span class="num">15000</span>                                  <span class="cm"># Default: 15s</span></pre>
+
+<pre class="code-block" id="code-subscription"><span class="cm"># The DataChangeHandler — fires every time a sensor value changes
+# This is the heart of the OPC-UA subscription pattern</span>
+
+<span class="kw">from</span> asyncua <span class="kw">import</span> ua
+<span class="kw">import</span> json, asyncio
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime, timezone
+
+<span class="kw">class</span> <span class="cl">DataChangeHandler</span>:
+    <span class="str">"""
+    OPC-UA calls datachange_notification() automatically
+    whenever a MonitoredItem's value changes beyond deadband
+    OR when the sampling interval fires.
+    No polling. No loops. Pure event-driven.
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, redis_client, sensor_registry):
+        self.redis = redis_client
+        self.registry = sensor_registry  <span class="cm"># id → metadata</span>
+
+    <span class="kw">async def</span> <span class="fn">datachange_notification</span>(self, node, val, data):
+        <span class="cm"># This fires AUTOMATICALLY when OPC-UA server pushes</span>
+        sensor_id = <span class="kw">await</span> node.<span class="fn">read_browse_name</span>()
+        sensor_id = sensor_id.Name  <span class="cm"># e.g. "T003"</span>
+
+        meta = self.registry.<span class="fn">get</span>(sensor_id)
+        <span class="kw">if not</span> meta:
+            <span class="kw">return</span>
+
+        <span class="cm"># Compute status against thresholds</span>
+        pct = val / meta[<span class="str">"max_threshold"</span>]
+        status = <span class="str">"critical"</span> <span class="kw">if</span> pct >= <span class="num">1.0</span> <span class="kw">else</span> \
+                 <span class="str">"warning"</span>  <span class="kw">if</span> pct >= <span class="num">0.8</span> <span class="kw">else</span> <span class="str">"normal"</span>
+
+        reading = {
+            <span class="str">"id"</span>:            sensor_id,
+            <span class="str">"name"</span>:          meta[<span class="str">"name"</span>],
+            <span class="str">"subsystem"</span>:     meta[<span class="str">"subsystem"</span>],
+            <span class="str">"value"</span>:         <span class="fn">round</span>(val, <span class="num">3</span>),
+            <span class="str">"unit"</span>:          meta[<span class="str">"unit"</span>],
+            <span class="str">"status"</span>:        status,
+            <span class="str">"max_threshold"</span>: meta[<span class="str">"max_threshold"</span>],
+            <span class="str">"timestamp"</span>:     datetime.<span class="fn">now</span>(timezone.utc).<span class="fn">isoformat</span>()
+        }
+
+        <span class="cm"># Publish to Redis channel — FastAPI WebSocket picks it up</span>
+        channel = <span class="str">f"subsystem:{meta['subsystem']}"</span>
+        <span class="kw">await</span> self.redis.<span class="fn">publish</span>(channel, json.<span class="fn">dumps</span>(reading))
+
+        <span class="cm"># Also update rolling buffer for new client catchup</span>
+        key = <span class="str">f"sensor:{sensor_id}"</span>
+        score = datetime.<span class="fn">now</span>().<span class="fn">timestamp</span>()
+        <span class="kw">await</span> self.redis.<span class="fn">zadd</span>(key, {json.<span class="fn">dumps</span>(reading): score})
+        <span class="kw">await</span> self.redis.<span class="fn">zremrangebyscore</span>(key, <span class="num">0</span>, score - <span class="num">600</span>)  <span class="cm"># keep 10min</span></pre>
+
+<pre class="code-block" id="code-redis-bridge"><span class="cm"># Full wiring — how everything connects on Machine 1
+# Run this single service: python opc_bridge.py</span>
+
+<span class="kw">import</span> asyncio
+<span class="kw">import</span> aioredis
+<span class="kw">from</span> simulator <span class="kw">import</span> SimulatorService, SensorRegistry
+<span class="kw">from</span> opc_server <span class="kw">import</span> OPCUAServerWrapper
+<span class="kw">from</span> opc_client <span class="kw">import</span> OPCUAClient
+<span class="kw">from</span> handlers  <span class="kw">import</span> DataChangeHandler
+
+<span class="kw">async def</span> <span class="fn">main</span>():
+    <span class="cm"># 1. Connect to Redis on Machine 2</span>
+    redis = <span class="kw">await</span> aioredis.<span class="fn">create_redis_pool</span>(
+        <span class="str">"redis://machine2-ip:6379"</span>
+    )
+
+    <span class="cm"># 2. Start Python simulator (demo mode)
+    #    In production: skip this, point to real DCS</span>
+    registry = <span class="cl">SensorRegistry</span>()
+    simulator = <span class="cl">SimulatorService</span>(registry)
+
+    <span class="cm"># 3. Wrap simulator in OPC-UA server</span>
+    opc_server = <span class="cl">OPCUAServerWrapper</span>(simulator)
+    <span class="kw">await</span> opc_server.<span class="fn">setup</span>()
+
+    <span class="cm"># 4. Create DataChangeHandler (fires on every sensor update)</span>
+    handler = <span class="cl">DataChangeHandler</span>(redis, registry.<span class="fn">as_dict</span>())
+
+    <span class="cm"># 5. OPC-UA client subscribes to the server</span>
+    opc_client = <span class="cl">OPCUAClient</span>(data_change_handler=handler)
+
+    <span class="cm"># 6. Run everything concurrently</span>
+    <span class="kw">await</span> asyncio.<span class="fn">gather</span>(
+        simulator.<span class="fn">run</span>(),         <span class="cm"># generates data</span>
+        opc_server.<span class="fn">update_loop</span>(), <span class="cm"># pushes to OPC nodes</span>
+        opc_client.<span class="fn">connect_and_subscribe</span>(),  <span class="cm"># subscribes + forwards to Redis</span>
+    )
+
+<span class="cm"># ─────────────────────────────────────────────────────
+# PRODUCTION SWAP: just change this env var on Machine 1
+# .env: OPC_SERVER_URL=opc.tcp://dcs-server-ip:4840
+# Everything else stays identical.
+# ─────────────────────────────────────────────────────</span>
+
+asyncio.<span class="fn">run</span>(<span class="fn">main</span>())</pre>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════ YOUR PROJECT ═══════════════════ -->
+<section id="sec-project" class="section-hidden">
+<div style="padding:40px 0 0;">
+  <div class="sec-header">
+    <div class="sec-label">Applied to BHEL</div>
+    <div class="sec-title">How This Fits Your Architecture</div>
+    <div class="sec-sub">Exactly where OPC-UA sits in your deployment — and what changes when you go from demo to production.</div>
+  </div>
+
+  <div class="project-wrap">
+    <!-- Architecture flow -->
+    <div class="project-arch">
+      <div style="font-size:11px;letter-spacing:2px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;margin-bottom:20px;">MACHINE 1 — DATA ACQUISITION</div>
+      <div class="arch-flow">
+        <div class="arch-node">
+          <div class="arch-box sim">Python Simulator</div>
+          <div class="arch-label">demo data source</div>
+        </div>
+        <div class="arch-arrow"><div class="arch-arrow-line" style="background:linear-gradient(90deg,rgba(139,92,246,0.4),rgba(249,115,22,0.5));"></div><div class="arch-arrow-label">feeds</div></div>
+        <div class="arch-node">
+          <div class="arch-box opc-s">OPC-UA Server</div>
+          <div class="arch-label">exposes nodes :4840</div>
+        </div>
+        <div class="arch-arrow"><div class="arch-arrow-line" style="background:linear-gradient(90deg,rgba(249,115,22,0.5),rgba(6,182,212,0.5));"></div><div class="arch-arrow-label">subscription</div></div>
+        <div class="arch-node">
+          <div class="arch-box opc-c">OPC-UA Client</div>
+          <div class="arch-label">DataChangeHandler</div>
+        </div>
+        <div class="arch-arrow"><div class="arch-arrow-line"></div><div class="arch-arrow-label" style="color:var(--ua-color);">publish</div></div>
+        <div class="arch-node">
+          <div class="arch-box redis">Redis Pub/Sub</div>
+          <div class="arch-label">Machine 2</div>
+        </div>
+        <div class="arch-arrow"><div class="arch-arrow-line" style="background:linear-gradient(90deg,rgba(239,68,68,0.4),rgba(34,211,160,0.5));"></div><div class="arch-arrow-label">broadcast</div></div>
+        <div class="arch-node">
+          <div class="arch-box api">FastAPI WebSocket</div>
+          <div class="arch-label">Machine 2</div>
+        </div>
+        <div class="arch-arrow"><div class="arch-arrow-line" style="background:linear-gradient(90deg,rgba(34,211,160,0.4),rgba(251,191,36,0.5));"></div><div class="arch-arrow-label">WS stream</div></div>
+        <div class="arch-node">
+          <div class="arch-box mobile">Flutter App</div>
+          <div class="arch-label">LAN / local cloud</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Demo vs Production -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
+      <div style="background:var(--bg2);border:1px solid rgba(139,92,246,0.25);border-radius:12px;padding:22px;">
+        <div style="font-size:11px;letter-spacing:2px;color:#a78bfa;font-family:'IBM Plex Mono',monospace;margin-bottom:12px;">DEMO MODE (TODAY)</div>
+        <div style="font-size:13px;line-height:1.9;color:rgba(221,230,240,0.65);">
+          Python Simulator generates fake sensor data<br>
+          ↓ feeds into OPC-UA Server<br>
+          ↓ OPC-UA Client subscribes<br>
+          ↓ DataChangeHandler → Redis → FastAPI → Mobile<br><br>
+          <strong style="color:#a78bfa;">OPC_SERVER_URL = opc.tcp://machine1-ip:4840</strong>
+        </div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid rgba(6,182,212,0.25);border-radius:12px;padding:22px;">
+        <div style="font-size:11px;letter-spacing:2px;color:var(--ua-color);font-family:'IBM Plex Mono',monospace;margin-bottom:12px;">PRODUCTION MODE (BHEL DEPLOYMENT)</div>
+        <div style="font-size:13px;line-height:1.9;color:rgba(221,230,240,0.65);">
+          BHEL DCS system provides real sensor data<br>
+          ↓ DCS OPC-UA Server already running<br>
+          ↓ Your OPC-UA Client subscribes to DCS<br>
+          ↓ Same DataChangeHandler → Redis → FastAPI → Mobile<br><br>
+          <strong style="color:var(--ua-color);">OPC_SERVER_URL = opc.tcp://dcs-server-ip:4840</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- The one question -->
+    <div style="background:linear-gradient(135deg,rgba(251,191,36,0.06),rgba(249,115,22,0.04));border:1px solid rgba(251,191,36,0.2);border-radius:12px;padding:24px;margin-bottom:24px;">
+      <div style="font-size:13px;font-weight:600;color:var(--yellow);margin-bottom:10px;">⚡ The one question to ask BHEL before you build Machine 1</div>
+      <div style="font-size:14px;font-style:italic;color:rgba(221,230,240,0.8);margin-bottom:14px;">"Does your DCS system support OPC-UA (Unified Architecture), or is it OPC-DA (Data Access)?"</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <div style="font-size:11px;color:var(--green);font-weight:600;margin-bottom:6px;">If they say OPC-UA:</div>
+          <div style="font-size:12px;line-height:1.7;color:rgba(221,230,240,0.55);">pip install asyncua. Machine 1 is a Linux VM. 50 lines of Python. Clean, done in a day.</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--red);font-weight:600;margin-bottom:6px;">If they say OPC-DA:</div>
+          <div style="font-size:12px;line-height:1.7;color:rgba(221,230,240,0.55);">Machine 1 must be Windows. Install Kepware or Matrikon as a DA→UA bridge. Your Python code then connects to Kepware's UA interface — same code, same asyncua library. Extra step, but manageable.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- What to say to BHEL -->
+    <div style="background:rgba(6,182,212,0.04);border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;">
+      <div style="font-size:12px;font-weight:600;color:var(--ua-color);letter-spacing:1px;margin-bottom:14px;">WHAT TO SAY TO BHEL'S TECHNICAL TEAM</div>
+      <div style="background:var(--bg3);border-radius:8px;padding:18px;font-size:13px;line-height:1.9;color:rgba(221,230,240,0.8);font-style:italic;border-left:3px solid var(--ua-color);">
+        "We've built the data acquisition layer on OPC-UA subscriptions with per-sensor MonitoredItems. Each sensor has its own configured sampling interval and deadband — meaning the DCS pushes data to our client only when a value actually changes, not on a fixed poll cycle. A stable temperature sensor generates zero network traffic until it moves. For integration with your DCS, we need to confirm whether it exposes an OPC-UA endpoint on port 4840, or whether we need a Kepware bridge in front of an older OPC-DA interface. Either way, our pipeline downstream is identical — it's a one-line configuration change."
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<script>
+// ── TAB SWITCHING ──────────────────────────────────────────────────────────
+const tabs = {
+  overview: 'sec-overview',
+  'da-flow': 'sec-da-flow',
+  'ua-flow': 'sec-ua-flow',
+  compare: 'sec-compare',
+  subscription: 'sec-subscription',
+  code: 'sec-code',
+  project: 'sec-project'
+};
+
+function switchTab(id) {
+  Object.keys(tabs).forEach(k => {
+    document.getElementById(tabs[k]).classList.toggle('section-hidden', k !== id);
+  });
+  document.querySelectorAll('.nav-tab').forEach((t,i) => {
+    t.classList.toggle('active', Object.keys(tabs)[i] === id);
+  });
+  window.scrollTo(0,0);
+  if(id === 'da-flow') setTimeout(drawDACanvas,100);
+  if(id === 'ua-flow') setTimeout(drawUACanvas,100);
+}
+
+// ── CODE TABS ──────────────────────────────────────────────────────────────
+function switchCode(id) {
+  document.querySelectorAll('.code-block').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.code-tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('code-'+id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ── DA CANVAS ANIMATION ────────────────────────────────────────────────────
+function drawDACanvas() {
+  const canvas = document.getElementById('da-canvas');
+  if(!canvas) return;
+  canvas.width = canvas.offsetWidth;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = 200;
+
+  const nodes = [
+    {x:80,  y:100, label:'DCS\nOPC-DA\nServer', color:'#f97316', sub:'Windows Machine'},
+    {x:260, y:100, label:'DCOM\nNetwork\nCall',   color:'#ef4444', sub:'Random Port 135+'},
+    {x:440, y:100, label:'Your OPC\nClient',      color:'#f97316', sub:'Windows Only'},
+    {x:620, y:100, label:'Poll Every\n10 Seconds', color:'#f97316', sub:'Fixed interval'},
+    {x:800, y:100, label:'Redis\nPub/Sub',         color:'#22d3a0', sub:'Machine 2'},
+  ];
+
+  const particles = [];
+  nodes.forEach((n,i) => {
+    if(i < nodes.length-1) {
+      for(let j=0;j<2;j++) particles.push({
+        from:i,to:i+1,
+        t:Math.random(),
+        speed: i===1 ? 0.004 : 0.006,
+        color: i===1 ? '#ef4444' : '#f97316'
+      });
+    }
+  });
+
+  function drawNode(n) {
+    ctx.shadowBlur=16; ctx.shadowColor=n.color;
+    ctx.strokeStyle=n.color; ctx.lineWidth=1.5;
+    ctx.fillStyle='rgba(15,20,30,0.9)';
+    ctx.beginPath();
+    roundRect(ctx, n.x-50, n.y-36, 100, 72, 8);
+    ctx.fill(); ctx.stroke();
+    ctx.shadowBlur=0;
+
+    ctx.fillStyle=n.color;
+    ctx.font='bold 11px IBM Plex Sans';
+    ctx.textAlign='center';
+    const lines = n.label.split('\n');
+    lines.forEach((l,i) => ctx.fillText(l, n.x, n.y - 8 + i*13));
+
+    ctx.fillStyle='rgba(200,230,240,0.3)';
+    ctx.font='9px IBM Plex Mono';
+    ctx.fillText(n.sub, n.x, n.y+32);
+  }
+
+  function drawArrow(a,b,color) {
+    ctx.strokeStyle=color+'44'; ctx.lineWidth=1.5;
+    ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(a.x+51,a.y); ctx.lineTo(b.x-51,b.y); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function drawParticle(p) {
+    const a=nodes[p.from], b=nodes[p.to];
+    const x = a.x+51 + (b.x-51 - (a.x+51))*p.t;
+    const y = a.y;
+    const fade = Math.sin(p.t*Math.PI);
+    ctx.beginPath(); ctx.arc(x,y,3*fade,0,Math.PI*2);
+    ctx.fillStyle=p.color; ctx.globalAlpha=fade*0.9; ctx.fill();
+    ctx.globalAlpha=1;
+  }
+
+  function roundRect(ctx,x,y,w,h,r){ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);}
+
+  function frame() {
+    ctx.clearRect(0,0,W,H);
+    // lines
+    for(let i=0;i<nodes.length-1;i++) drawArrow(nodes[i],nodes[i+1], i===1?'#ef4444':'#f97316');
+    nodes.forEach(n=>drawNode(n));
+    particles.forEach(p=>{
+      p.t+=p.speed; if(p.t>1) p.t=0;
+      drawParticle(p);
+    });
+    requestAnimationFrame(frame);
+  }
+  frame();
+}
+
+// ── UA CANVAS ANIMATION ────────────────────────────────────────────────────
+function drawUACanvas() {
+  const canvas = document.getElementById('ua-canvas');
+  if(!canvas) return;
+  canvas.width = canvas.offsetWidth;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = 200;
+
+  const nodes = [
+    {x:70,  y:100, label:'DCS / Your\nSimulator',  color:'#a78bfa', sub:'any OS'},
+    {x:230, y:100, label:'OPC-UA\nServer',           color:'#06b6d4', sub:'port 4840'},
+    {x:410, y:100, label:'TCP\nHandshake\n+ TLS',    color:'#06b6d4', sub:'secure channel'},
+    {x:580, y:100, label:'OPC-UA\nClient\nSubscribe',color:'#06b6d4', sub:'MonitoredItems'},
+    {x:750, y:100, label:'DataChange\nHandler',      color:'#22d3a0', sub:'event-driven'},
+    {x:910, y:100, label:'Redis\nPub/Sub',            color:'#22d3a0', sub:'Machine 2'},
+  ];
+
+  const particles=[];
+  nodes.forEach((n,i)=>{
+    if(i<nodes.length-1){
+      for(let j=0;j<3;j++) particles.push({
+        from:i,to:i+1,
+        t:j/3+Math.random()*0.1,
+        speed:i===3?0.012:0.008,
+        color:i<3?'#06b6d4':'#22d3a0',
+        size:i===3?4:2.5
+      });
+    }
+  });
+
+  function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);}
+
+  function drawNode(n,nw) {
+    nw=nw||80;
+    ctx.shadowBlur=14; ctx.shadowColor=n.color;
+    ctx.strokeStyle=n.color; ctx.lineWidth=1.5;
+    ctx.fillStyle='rgba(12,18,28,0.95)';
+    roundRect(ctx,n.x-nw/2,n.y-36,nw,72,8);
+    ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+    ctx.fillStyle=n.color; ctx.font='bold 10px IBM Plex Sans'; ctx.textAlign='center';
+    n.label.split('\n').forEach((l,i)=>ctx.fillText(l,n.x,n.y-8+i*13));
+    ctx.fillStyle='rgba(200,230,240,0.3)'; ctx.font='9px IBM Plex Mono';
+    ctx.fillText(n.sub,n.x,n.y+32);
+  }
+
+  function frame(){
+    ctx.clearRect(0,0,W,H);
+    // path lines
+    for(let i=0;i<nodes.length-1;i++){
+      const a=nodes[i],b=nodes[i+1];
+      const col=i<3?'#06b6d4':'#22d3a0';
+      ctx.strokeStyle=col+'33'; ctx.lineWidth=1.5; ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(a.x+41,a.y); ctx.lineTo(b.x-41,b.y); ctx.stroke();
+    }
+    const nws=[75,75,70,85,80,70];
+    nodes.forEach((n,i)=>drawNode(n,nws[i]));
+    particles.forEach(p=>{
+      p.t+=p.speed; if(p.t>1)p.t-=1;
+      const a=nodes[p.from],b=nodes[p.to];
+      const x=a.x+41+(b.x-41-(a.x+41))*p.t;
+      const fade=Math.sin(p.t*Math.PI);
+      // glow
+      ctx.beginPath(); ctx.arc(x,a.y,(p.size||3)*fade*2,0,Math.PI*2);
+      ctx.fillStyle=p.color+'33'; ctx.fill();
+      ctx.beginPath(); ctx.arc(x,a.y,(p.size||3)*fade,0,Math.PI*2);
+      ctx.fillStyle=p.color; ctx.globalAlpha=fade*0.95; ctx.fill();
+      ctx.globalAlpha=1;
+    });
+    requestAnimationFrame(frame);
+  }
+  frame();
+}
+
+// Init first tab
+switchTab('overview');
+</script>
+</body>
+</html>

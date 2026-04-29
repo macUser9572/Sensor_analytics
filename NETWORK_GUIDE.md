@@ -14,7 +14,7 @@ This is the most reliable method for a boardroom demo.
 
 ## 2. Finding the Laptop's Local IP
 
-You cannot use `localhost` or `127.0.0.1` on the phone, because `localhost` refers to the phone itself. You need the laptop's network IP address.
+Use the LAN address from `.env` on every client. Phone and tablet traffic must target `M2_IP`, not a device-private loopback address.
 
 **On Mac:**
 - Method A: Run `./start_demo.sh` (it will auto-detect and print it).
@@ -28,19 +28,15 @@ You cannot use `localhost` or `127.0.0.1` on the phone, because `localhost` refe
 
 ## 3. Updating Flutter App Configuration
 
-Before building the final artifact for the phone, you must hardcode the laptop's IP address.
+Before building the final artifact for the phone, pass the backend URL from `.env`.
 
-1. Open `companion_app/lib/config.dart` (or wherever your API service variables are stored, such as `companion_app/lib/services/api_service.dart`).
-2. Replace any instance of `localhost` or `10.0.2.2` (Android emulator loopback) with the IP address.
+1. Confirm `FLUTTER_API_BASE_URL` and `FLUTTER_WS_URL` point at `M2_IP`.
+2. Build with Dart defines:
 
-```dart
-// Change THIS:
-// final String BASE_URL = "http://localhost:8000";
-// final String WS_URL = "ws://localhost:8000/ws";
-
-// To THIS (example IP):
-final String BASE_URL = "http://192.168.1.45:8000";
-final String WS_URL = "ws://192.168.1.45:8000/ws";
+```bash
+flutter build apk \
+  --dart-define=FLUTTER_API_BASE_URL=http://${M2_IP}:8000 \
+  --dart-define=FLUTTER_WS_URL=ws://${M2_IP}:8000
 ```
 
 3. Rebuild the Flutter app and install it onto the physical device using `flutter build apk` (or `ios`) and deploying via USB. Do not hot-reload during the actual demo—run the compiled release app.

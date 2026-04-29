@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { apiUrl } from '../config';
 
 export default function ExportDataView() {
   const [startDate, setStartDate] = useState('');
@@ -23,7 +24,7 @@ export default function ExportDataView() {
     try {
       const startIso = new Date(startDate).toISOString();
       const endIso = new Date(endDate).toISOString();
-      const response = await fetch(`http://localhost:8000/data/export?start_date=${encodeURIComponent(startIso)}&end_date=${encodeURIComponent(endIso)}`);
+      const response = await fetch(apiUrl(`/data/export?start_date=${encodeURIComponent(startIso)}&end_date=${encodeURIComponent(endIso)}`));
       
       if (!response.ok) {
         if (response.status === 404) {

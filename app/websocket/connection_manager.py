@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Set[WebSocket] = set()
-        self.redis = aioredis.from_url(settings.redis_url, decode_responses=True)
+        self.redis = aioredis.from_url(settings.redis_url(), decode_responses=True)
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()

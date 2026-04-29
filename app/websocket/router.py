@@ -37,7 +37,7 @@ async def websocket_alerts(websocket: WebSocket):
                 "alert": alert
             }))
             
-    redis_client = aioredis.from_url(settings.redis_url, decode_responses=True)
+    redis_client = aioredis.from_url(settings.redis_url(), decode_responses=True)
     pubsub = redis_client.pubsub()
     await pubsub.subscribe("alerts")
     

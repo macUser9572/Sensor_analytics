@@ -1,104 +1,111 @@
-version: "3.9"
-
 services:
-  # ─── FastAPI Application ─────────────────────────────────────
   api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: sensor_api
+    container_name: bhel_fastapi
+    env_file: .env
     ports:
-      - "${APP_PORT:-8000}:8000"
-    env_file:
-      - .env
+      - "0.0.0.0:${API_PORT}:8000"
+    restart: unless-stopped
     volumes:
-      - ./app:/app/app # hot-reload during development
+      - api_logs:/var/log/bhel
     depends_on:
-      timescaledb:
-        condition: service_healthy
       redis:
+        condition: service_healthy
+      timescaledb:
         condition: service_healthy
       minio:
         condition: service_healthy
     networks:
-      - sensor_net
+      - bhel_net
     healthcheck:
-      test: [ "CMD", "python", "-c", "import httpx; r = httpx.get('http://localhost:8000/health'); assert r.status_code == 200" ]
+      test: ["CMD-SHELL", "python -c \"import os, httpx; port=os.getenv('API_PORT'); r=httpx.get(f'http://0.0.0.0:{port}/health', timeout=5); assert r.status_code == 200\""]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 30s
 
-  # ─── TimescaleDB (PostgreSQL + time-series) ─────────────────
-  timescaledb:
-    image: timescale/timescaledb:latest-pg17 # ← Fix 1: upgrade pg15 → pg17
-    container_name: sensor_timescaledb
-    ports:
-      - "5435:5432" # ← Fix 2: host:container — avoids the conflict
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - timescaledb_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    networks:
-      - sensor_net
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
-  # ─── Redis 7 (caching + pub/sub) ────────────────────────────
   redis:
     image: redis:7-alpine
-    container_name: sensor_redis
+    container_name: bhel_redis
+    env_file: .env
+    command: >
+      sh -c 'if [ -n "$$REDIS_PASSWORD" ];
+      then redis-server --appendonly yes --bind 0.0.0.0 --requirepass "$$REDIS_PASSWORD";
+      else redis-server --appendonly yes --bind 0.0.0.0;
+      fi'
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "0.0.0.0:${REDIS_PORT}:6379"
+    restart: unless-stopped
     volumes:
       - redis_data:/data
     networks:
-      - sensor_net
+      - bhel_net
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
-
-  # ─── MinIO (S3-compatible object storage) ────────────────────
-  minio:
-    image: minio/minio:latest
-    container_name: sensor_minio
-    ports:
-      - "${MINIO_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    volumes:
-      - minio_data:/data
-    command: server /data --console-address ":9001"
-    networks:
-      - sensor_net
-    healthcheck:
-      test: [ "CMD", "mc", "ready", "local" ]
+      test: ["CMD-SHELL", "if [ -n \"$$REDIS_PASSWORD\" ]; then redis-cli -h 0.0.0.0 -p 6379 -a \"$$REDIS_PASSWORD\" ping; else redis-cli -h 0.0.0.0 -p 6379 ping; fi"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
 
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: bhel_timescaledb
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "0.0.0.0:${DB_PORT}:5432"
+    restart: unless-stopped
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - bhel_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 0.0.0.0 -p 5432 -U \"$${DB_USER}\" -d \"$${DB_NAME}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  minio:
+    image: minio/minio:latest
+    container_name: bhel_minio
+    env_file: .env
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    command: server /data --address "0.0.0.0:9000" --console-address "0.0.0.0:9001"
+    ports:
+      - "0.0.0.0:${MINIO_PORT}:9000"
+      - "0.0.0.0:${MINIO_CONSOLE_PORT}:9001"
+    restart: unless-stopped
+    volumes:
+      - minio_data:/data
+    networks:
+      - bhel_net
+    healthcheck:
+      test: ["CMD-SHELL", "mc alias set bhel http://0.0.0.0:9000 \"$${MINIO_ACCESS_KEY}\" \"$${MINIO_SECRET_KEY}\" >/dev/null 2>&1 && mc ready bhel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
 volumes:
-  timescaledb_data:
-    name: sensor_timescaledb_data
+  api_logs:
+    name: bhel_api_logs
   redis_data:
-    name: sensor_redis_data
+    name: bhel_redis_data
+  timescaledb_data:
+    name: bhel_timescaledb_data
   minio_data:
-    name: sensor_minio_data
+    name: bhel_minio_data
 
 networks:
-  sensor_net:
-    name: sensor_network
+  bhel_net:
+    name: bhel_net
     driver: bridge

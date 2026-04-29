@@ -45,13 +45,13 @@ async def lifespan(app: FastAPI):
     # ── Startup ─────────────────────────────────
     # Redis – async connection pool
     redis_client = aioredis.from_url(
-        settings.redis_url,
+        settings.redis_url(),
         decode_responses=True,
     )
 
     # MinIO – synchronous client (official SDK has no async variant)
     minio_client = Minio(
-        endpoint=settings.minio_endpoint,
+        endpoint=settings.minio_endpoint(),
         access_key=settings.minio_access_key,
         secret_key=settings.minio_secret_key,
         secure=settings.minio_secure,
@@ -95,7 +95,7 @@ app = FastAPI(
 # Wide-open for the demo; lock this down for production.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

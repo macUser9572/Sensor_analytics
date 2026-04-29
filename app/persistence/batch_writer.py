@@ -3,6 +3,7 @@ from collections import deque
 import logging
 from sqlalchemy import text
 from app.database import engine
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class BatchWriter:
 
     async def _loop(self):
         while self.is_running:
-            await asyncio.sleep(5)
+            await asyncio.sleep(settings.batch_flush_interval_seconds)
             await self.flush()
 
     async def start(self):

@@ -19,7 +19,7 @@ class AlertEngine:
         self.redis = None
 
     async def start(self):
-        self.redis = aioredis.from_url(settings.redis_url, decode_responses=True)
+        self.redis = aioredis.from_url(settings.redis_url(), decode_responses=True)
 
     async def stop(self):
         if self.redis:

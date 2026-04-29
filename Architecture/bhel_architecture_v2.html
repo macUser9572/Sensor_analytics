@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BHEL — Updated Architecture & Change Register</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07080c;
+  --bg2:#0d0f16;
+  --bg3:#13151f;
+  --bg4:#191c28;
+  --cyan:#22d3ee;
+  --cyan-dim:rgba(34,211,238,0.1);
+  --cyan-glow:rgba(34,211,238,0.3);
+  --amber:#f59e0b;
+  --amber-dim:rgba(245,158,11,0.1);
+  --green:#10b981;
+  --green-dim:rgba(16,185,129,0.1);
+  --red:#f43f5e;
+  --red-dim:rgba(244,63,94,0.1);
+  --purple:#8b5cf6;
+  --purple-dim:rgba(139,92,246,0.1);
+  --blue:#3b82f6;
+  --blue-dim:rgba(59,130,246,0.1);
+  --text:#e2e8f0;
+  --text-dim:#475569;
+  --border:rgba(255,255,255,0.06);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;}
+
+/* noise texture */
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;z-index:0;opacity:0.4;}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  position:fixed;left:0;top:0;bottom:0;width:240px;
+  background:var(--bg2);border-right:1px solid var(--border);
+  z-index:100;overflow-y:auto;padding:24px 0;
+  display:flex;flex-direction:column;
+}
+.sidebar-logo{
+  padding:0 20px 20px;border-bottom:1px solid var(--border);margin-bottom:16px;
+}
+.sl-badge{
+  width:36px;height:36px;border:1.5px solid var(--cyan);border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'DM Mono',monospace;font-size:10px;color:var(--cyan);
+  box-shadow:0 0 12px var(--cyan-glow);margin-bottom:10px;
+}
+.sl-title{font-size:12px;font-weight:700;letter-spacing:1px;color:#fff;}
+.sl-sub{font-size:9px;color:var(--text-dim);font-family:'DM Mono',monospace;letter-spacing:0.5px;margin-top:2px;}
+
+.nav-section{padding:0 12px;margin-bottom:4px;}
+.nav-section-label{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);font-family:'DM Mono',monospace;padding:10px 8px 6px;}
+.nav-item{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 8px;border-radius:6px;cursor:pointer;
+  font-size:11px;font-weight:500;color:var(--text-dim);
+  transition:all 0.15s;letter-spacing:0.3px;
+  text-decoration:none;
+}
+.nav-item:hover{background:var(--bg3);color:var(--text);}
+.nav-item.active{background:var(--cyan-dim);color:var(--cyan);}
+.nav-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.nav-item .badge{
+  margin-left:auto;font-size:8px;font-family:'DM Mono',monospace;
+  padding:2px 6px;border-radius:3px;
+}
+.badge-new{background:rgba(16,185,129,0.15);color:var(--green);border:1px solid rgba(16,185,129,0.25);}
+.badge-change{background:rgba(245,158,11,0.15);color:var(--amber);border:1px solid rgba(245,158,11,0.25);}
+.badge-same{background:rgba(71,85,105,0.2);color:var(--text-dim);border:1px solid rgba(71,85,105,0.2);}
+
+/* ── MAIN ── */
+main{margin-left:240px;position:relative;z-index:1;}
+
+/* ── HERO ── */
+.hero{
+  padding:56px 56px 48px;
+  border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg,rgba(34,211,238,0.03) 0%,transparent 100%);
+}
+.hero-eyebrow{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--cyan);text-transform:uppercase;margin-bottom:14px;}
+.hero-title{font-size:38px;font-weight:800;line-height:1.1;margin-bottom:16px;letter-spacing:-0.5px;}
+.hero-title span{color:var(--cyan);}
+.hero-desc{font-size:14px;line-height:1.8;color:rgba(226,232,240,0.6);max-width:640px;}
+.hero-meta{display:flex;gap:24px;margin-top:28px;}
+.meta-item{display:flex;align-items:center;gap:8px;font-size:11px;font-family:'DM Mono',monospace;}
+.meta-dot{width:8px;height:8px;border-radius:50%;}
+
+/* ── SECTIONS ── */
+.content{padding:48px 56px;}
+.section{margin-bottom:72px;}
+.section:last-child{margin-bottom:0;}
+
+.sec-eyebrow{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;}
+.sec-title{font-size:24px;font-weight:700;margin-bottom:6px;letter-spacing:-0.3px;}
+.sec-desc{font-size:13px;line-height:1.8;color:rgba(226,232,240,0.55);margin-bottom:28px;}
+
+/* ── MACHINE CARDS (deployment) ── */
+.machine-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.machine-card{
+  border-radius:12px;padding:24px;
+  background:var(--bg2);border:1px solid var(--border);
+  position:relative;overflow:hidden;
+}
+.machine-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.mc-m1::before{background:var(--cyan);}
+.mc-m2::before{background:var(--amber);}
+.mc-m3::before{background:var(--green);}
+.mc-m4::before{background:var(--purple);}
+.mc-num{
+  font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;
+  color:var(--text-dim);margin-bottom:10px;
+}
+.mc-name{font-size:15px;font-weight:700;margin-bottom:4px;}
+.mc-role{font-size:11px;color:var(--text-dim);margin-bottom:14px;font-family:'DM Mono',monospace;}
+.mc-services{display:flex;flex-direction:column;gap:5px;}
+.mc-service{
+  display:flex;align-items:center;gap:8px;
+  font-size:11px;padding:5px 8px;border-radius:5px;
+  background:var(--bg3);
+}
+.mc-service-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.mc-badge{
+  margin-left:auto;font-size:8px;font-family:'DM Mono',monospace;
+  padding:2px 6px;border-radius:3px;
+}
+
+/* ── ARCHITECTURE FLOW ── */
+.arch-flow{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:14px;overflow:hidden;
+}
+.af-header{
+  padding:16px 20px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--bg3);
+}
+.af-title{font-size:12px;font-weight:600;letter-spacing:1px;}
+.af-legend{display:flex;gap:16px;}
+.af-leg{display:flex;align-items:center;gap:5px;font-size:9px;font-family:'DM Mono',monospace;color:var(--text-dim);}
+.af-leg-dot{width:6px;height:6px;border-radius:50%;}
+
+.flow-layers{padding:20px;}
+.flow-layer{
+  display:flex;align-items:stretch;gap:0;
+  margin-bottom:0;
+  position:relative;
+}
+.fl-label{
+  width:120px;flex-shrink:0;
+  display:flex;align-items:center;
+  font-size:9px;font-family:'DM Mono',monospace;letter-spacing:1px;
+  color:var(--text-dim);text-transform:uppercase;padding-right:12px;
+  border-right:1px solid var(--border);
+}
+.fl-nodes{
+  flex:1;display:flex;flex-wrap:wrap;gap:8px;padding:12px 0 12px 16px;
+  border-bottom:1px solid var(--border);
+}
+.flow-layer:last-child .fl-nodes{border-bottom:none;}
+.fn-node{
+  display:flex;align-items:center;gap:7px;
+  padding:8px 12px;border-radius:8px;
+  font-size:11px;font-weight:500;
+  border:1px solid;white-space:nowrap;
+}
+.fn-status{
+  font-size:8px;font-family:'DM Mono',monospace;
+  padding:2px 6px;border-radius:3px;margin-left:4px;
+}
+
+/* Colors */
+.c-cyan{background:var(--cyan-dim);border-color:rgba(34,211,238,0.25);color:var(--cyan);}
+.c-amber{background:var(--amber-dim);border-color:rgba(245,158,11,0.25);color:var(--amber);}
+.c-green{background:var(--green-dim);border-color:rgba(16,185,129,0.25);color:var(--green);}
+.c-red{background:var(--red-dim);border-color:rgba(244,63,94,0.25);color:var(--red);}
+.c-purple{background:var(--purple-dim);border-color:rgba(139,92,246,0.25);color:var(--purple);}
+.c-blue{background:var(--blue-dim);border-color:rgba(59,130,246,0.25);color:var(--blue);}
+.c-dim{background:rgba(71,85,105,0.1);border-color:rgba(71,85,105,0.2);color:var(--text-dim);}
+
+/* ── CHANGE REGISTER ── */
+.change-table{width:100%;border-collapse:collapse;border-radius:12px;overflow:hidden;border:1px solid var(--border);}
+.change-table thead tr{background:var(--bg3);}
+.change-table th{padding:12px 16px;text-align:left;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);font-weight:600;border-bottom:1px solid var(--border);}
+.change-table td{padding:13px 16px;font-size:12px;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:top;line-height:1.6;}
+.change-table tr:last-child td{border-bottom:none;}
+.change-table tr:hover td{background:rgba(255,255,255,0.01);}
+.td-area{color:rgba(226,232,240,0.4);font-family:'DM Mono',monospace;font-size:10px;}
+.td-from{color:rgba(226,232,240,0.5);}
+.td-to{color:var(--text);}
+.status-pill{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:9px;font-family:'DM Mono',monospace;
+  padding:3px 8px;border-radius:20px;white-space:nowrap;
+}
+
+/* ── PHASE PLAN ── */
+.phase-list{display:flex;flex-direction:column;gap:0;}
+.phase-item{
+  display:grid;grid-template-columns:180px 1fr;
+  border:1px solid var(--border);border-radius:0;
+  border-bottom:none;overflow:hidden;
+}
+.phase-item:first-child{border-radius:12px 12px 0 0;}
+.phase-item:last-child{border-radius:0 0 12px 12px;border-bottom:1px solid var(--border);}
+.pi-left{
+  padding:20px;background:var(--bg3);
+  border-right:1px solid var(--border);
+}
+.pi-num{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--text-dim);margin-bottom:4px;}
+.pi-name{font-size:13px;font-weight:700;margin-bottom:4px;}
+.pi-days{font-size:10px;font-family:'DM Mono',monospace;color:var(--text-dim);}
+.pi-right{padding:20px;background:var(--bg2);}
+.pi-items{display:flex;flex-direction:column;gap:6px;}
+.pi-item{display:flex;align-items:flex-start;gap:8px;font-size:11px;line-height:1.6;}
+.pi-item::before{content:'→';flex-shrink:0;margin-top:1px;font-family:'DM Mono',monospace;}
+.pi-changed{
+  display:inline-block;font-size:8px;font-family:'DM Mono',monospace;
+  padding:1px 6px;border-radius:3px;margin-left:4px;vertical-align:middle;
+}
+
+/* ── SENSOR FAILURE SECTION ── */
+.failure-layers{display:flex;flex-direction:column;gap:12px;}
+.failure-layer{
+  border-radius:10px;padding:18px 20px;
+  border:1px solid;display:flex;gap:16px;align-items:flex-start;
+}
+.fl-num{
+  width:28px;height:28px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;flex-shrink:0;
+  font-family:'DM Mono',monospace;
+}
+.fl-body{}
+.fl-title{font-size:13px;font-weight:700;margin-bottom:4px;}
+.fl-desc{font-size:11px;line-height:1.7;color:rgba(226,232,240,0.55);}
+.fl-code{
+  margin-top:10px;background:var(--bg);border:1px solid var(--border);
+  border-radius:6px;padding:10px 12px;font-family:'DM Mono',monospace;
+  font-size:10px;line-height:1.8;color:rgba(226,232,240,0.7);white-space:pre;
+  overflow-x:auto;
+}
+.kw{color:#c792ea;}.fn{color:var(--cyan);}.str{color:#c3e88d;}.cm{color:#37474f;}.num{color:var(--amber);}
+
+/* ── ALERT TYPES ── */
+.alert-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+.alert-card{border-radius:10px;padding:16px;border:1px solid;}
+.ac-type{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;margin-bottom:6px;}
+.ac-title{font-size:12px;font-weight:700;margin-bottom:4px;}
+.ac-trigger{font-size:10px;color:rgba(226,232,240,0.45);line-height:1.6;}
+.ac-source{font-size:9px;font-family:'DM Mono',monospace;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);}
+
+/* ── COMPARISON FEATURE ── */
+.compare-flow{
+  background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  overflow:hidden;
+}
+.cf-header{padding:14px 20px;background:var(--bg3);border-bottom:1px solid var(--border);font-size:12px;font-weight:600;letter-spacing:0.5px;}
+.cf-body{padding:20px;}
+.cf-steps{display:flex;flex-direction:column;gap:0;}
+.cf-step{display:flex;gap:14px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+.cf-step:last-child{border-bottom:none;}
+.cf-step-num{
+  width:24px;height:24px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:700;flex-shrink:0;font-family:'DM Mono',monospace;
+  background:var(--cyan-dim);color:var(--cyan);border:1px solid rgba(34,211,238,0.25);
+}
+.cf-step-body{}
+.cf-step-title{font-size:12px;font-weight:600;margin-bottom:3px;}
+.cf-step-desc{font-size:11px;color:rgba(226,232,240,0.5);line-height:1.6;}
+
+/* ── NEW ENDPOINT BOX ── */
+.endpoint-box{
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:10px;padding:16px 18px;
+  font-family:'DM Mono',monospace;font-size:11px;line-height:1.9;
+  margin-top:12px;
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+/* entry animations */
+.section{animation:sec-in 0.4s ease both;}
+@keyframes sec-in{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="sl-badge">BHEL</div>
+    <div class="sl-title">ARCHITECTURE v2.0</div>
+    <div class="sl-sub">Updated after client discussion</div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Overview</div>
+    <a class="nav-item active" href="#deployment"><div class="nav-dot" style="background:var(--cyan);"></div>Deployment Architecture</a>
+    <a class="nav-item" href="#full-flow"><div class="nav-dot" style="background:var(--amber);"></div>Full System Flow</a>
+    <a class="nav-item" href="#changes"><div class="nav-dot" style="background:var(--green);"></div>Change Register</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">New Additions</div>
+    <a class="nav-item" href="#opc-layer"><div class="nav-dot" style="background:var(--cyan);"></div>OPC-UA Layer <span class="badge badge-new">NEW</span></a>
+    <a class="nav-item" href="#failure"><div class="nav-dot" style="background:var(--red);"></div>Sensor Failure <span class="badge badge-new">NEW</span></a>
+    <a class="nav-item" href="#alerts"><div class="nav-dot" style="background:var(--amber);"></div>Alert Types <span class="badge badge-change">UPDATED</span></a>
+    <a class="nav-item" href="#compare"><div class="nav-dot" style="background:var(--purple);"></div>Sensor Compare <span class="badge badge-new">NEW</span></a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Phase Plan</div>
+    <a class="nav-item" href="#phases"><div class="nav-dot" style="background:var(--green);"></div>All 10 Phases</a>
+    <a class="nav-item" href="#prompts-note"><div class="nav-dot" style="background:var(--purple);"></div>Prompt Strategy</a>
+  </div>
+
+  <div style="margin-top:auto;padding:16px 20px;border-top:1px solid var(--border);">
+    <div style="font-size:9px;color:var(--text-dim);font-family:'DM Mono',monospace;line-height:1.8;">
+      v1.0 → v2.0<br>
+      <span style="color:var(--green);">4 NEW</span> components<br>
+      <span style="color:var(--amber);">7 CHANGED</span> items<br>
+      <span style="color:var(--text-dim);">5 UNCHANGED</span>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<main>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-eyebrow">BHEL Haridwar Unit 5 — 500MW Thermal</div>
+  <div class="hero-title">Updated Architecture<br><span>& Complete Change Register</span></div>
+  <div class="hero-desc">Everything captured from all our discussions — what changed, what's new, what stays the same. Use this as the source of truth before writing prompts.</div>
+  <div class="hero-meta">
+    <div class="meta-item"><div class="meta-dot" style="background:var(--green);box-shadow:0 0 6px var(--green);"></div>4 New components</div>
+    <div class="meta-item"><div class="meta-dot" style="background:var(--amber);box-shadow:0 0 6px var(--amber);"></div>7 Changed items</div>
+    <div class="meta-item"><div class="meta-dot" style="background:var(--text-dim);"></div>5 Unchanged</div>
+    <div class="meta-item"><div class="meta-dot" style="background:var(--cyan);box-shadow:0 0 6px var(--cyan);"></div>10 Build phases</div>
+  </div>
+</div>
+
+<div class="content">
+
+<!-- ══ DEPLOYMENT ══ -->
+<div class="section" id="deployment">
+  <div class="sec-eyebrow">Section 01</div>
+  <div class="sec-title">Deployment Architecture — 4 Machines</div>
+  <div class="sec-desc">Client requirement: all components on separate physical/virtual machines within the same LAN. No loopback host in production. All URLs are IP-based via .env config.</div>
+
+  <div class="machine-grid">
+    <div class="machine-card mc-m1">
+      <div class="mc-num">MACHINE 1 — DATA ACQUISITION</div>
+      <div class="mc-name" style="color:var(--cyan);">OPC-UA Bridge Server</div>
+      <div class="mc-role">Ubuntu Linux VM · LAN IP: 192.168.x.1</div>
+      <div class="mc-services">
+        <div class="mc-service"><div class="mc-service-dot" style="background:#8b5cf6;"></div>Python Simulator (DCS replacement)<span class="mc-badge badge-same">SAME</span></div>
+        <div class="mc-service"><div class="mc-service-dot" style="background:var(--cyan);"></div>OPC-UA Server (asyncua, port 4840)<span class="mc-badge badge-new">NEW</span></div>
+        <div class="mc-service"><div class="mc-service-dot" style="background:var(--cyan);"></div>OPC-UA Client + Subscriptions<span class="mc-badge badge-new">NEW</span></div>
+        <div class="mc-service"><div class="mc-service-dot" style="background:var(--green);"></div>DataChangeHandler → Redis<span class="mc-badge badge-new">NEW</span></div>
+        <div class="mc-service"><div class="mc-service-dot" style="background:var(--red);"></div>Sensor Watchdog Timer<span class="mc-badge badge-new">NEW</span></div>
+      </div>
+    </div>
+
+    <div class="machine-card mc-m2">
+      <div class="mc-num">MACHINE 2 — BACKEND</div>
+      <div class="mc-name" style="color:var(--amber);">FastAPI + Redis</div>
+      <div class="mc-role">Ubuntu Linux VM · LAN IP: 192.168.x.2</div>
+      <div class="mc-services">
+        <div class="mc-service"><div class="mc-service-dot" style="background:var(--green);"></div>FastAPI (WebSocket + REST API)<span class="mc-badge badge-same">SAME</span></div>
+        <div class="mc-service"><div class="mc-service-dot" style="background:var(--red);"></div>Redis Pub/Sub (6 channels)<span class="mc-badge badge-same">SAME</span></div>
+        <div class="mc-service"><div class="mc-service-dot" style="background:var(--amber);"></div>Redis Cache (10min rolling buffer)<span class="mc-badge badge-change">UPDATED</span></div>
+        <div class="mc-service"><div class="mc-service-dot" style="background:var(--red);"></div>Alert Engine (4 alert types now)<span class="mc-badge badge-change">UPDATED</span></div>
+        <div class="mc-service"><div class="mc-service-dot" style="background:var(--amber);"></div>Batch Writer (15s flush)<span class="mc-badge badge-change">UPDATED</span></div>
+      </div>
+    </div>
+
+    <div class="machine-card mc-m3">
+      <div class="mc-num">MACHINE 3 — DATABASE & STORAGE</div>
+      <div class="mc-name" style="color:var(--green);">TimescaleDB + MinIO</div>
+      <div class="mc-role">Ubuntu Linux VM · LAN IP: 192.168.x.3</div>
+      <div class="mc-services">
+        <div class="mc-service"><div class="mc-service-dot" style="background:var(--green);"></div>TimescaleDB (port 5432)<span class="mc-badge badge-same">SAME</span></div>
+        <div class="mc-service"><div class="mc-service-dot" style="background:var(--green);"></div>MinIO Parquet storage (port 9000)<span class="mc-badge badge-same">SAME</span></div>
+        <div class="mc-service"><div class="mc-service-dot" style="background:var(--amber);"></div>readings hypertable + alerts table<span class="mc-badge badge-change">UPDATED</span></div>
+      </div>
+    </div>
+
+    <div class="machine-card mc-m4">
+      <div class="mc-num">MACHINE 4 — CLIENTS (LAN)</div>
+      <div class="mc-name" style="color:var(--purple);">React + Flutter</div>
+      <div class="mc-role">Browser + Mobile · Connects via LAN IP</div>
+      <div class="mc-services">
+        <div class="mc-service"><div class="mc-service-dot" style="background:var(--cyan);"></div>React Dashboard (primary demo)<span class="mc-badge badge-change">UPDATED</span></div>
+        <div class="mc-service"><div class="mc-service-dot" style="background:var(--purple);"></div>Flutter Mobile App (LAN access)<span class="mc-badge badge-change">UPDATED</span></div>
+        <div class="mc-service"><div class="mc-service-dot" style="background:var(--amber);"></div>Multi-sensor comparison (both)<span class="mc-badge badge-new">NEW</span></div>
+        <div class="mc-service"><div class="mc-service-dot" style="background:var(--red);"></div>Sensor fault indicators (both)<span class="mc-badge badge-new">NEW</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FULL FLOW ══ -->
+<div class="section" id="full-flow">
+  <div class="sec-eyebrow">Section 02</div>
+  <div class="sec-title">Complete System Flow — Layer by Layer</div>
+  <div class="sec-desc">Every component in sequence. Status tags show what's new, changed, or same vs v1.0.</div>
+
+  <div class="arch-flow">
+    <div class="af-header">
+      <div class="af-title">BHEL REALTIME ANALYTICS — v2.0 ARCHITECTURE</div>
+      <div class="af-legend">
+        <div class="af-leg"><div class="af-leg-dot" style="background:var(--green);"></div>NEW</div>
+        <div class="af-leg"><div class="af-leg-dot" style="background:var(--amber);"></div>CHANGED</div>
+        <div class="af-leg"><div class="af-leg-dot" style="background:var(--text-dim);"></div>SAME</div>
+      </div>
+    </div>
+    <div class="flow-layers">
+
+      <div class="flow-layer">
+        <div class="fl-label">M1<br>Simulator</div>
+        <div class="fl-nodes">
+          <div class="fn-node c-purple">⚙️ Python Simulator<span class="fn-status" style="background:rgba(71,85,105,0.2);color:var(--text-dim);">SAME</span></div>
+          <div style="display:flex;align-items:center;color:var(--text-dim);font-size:18px;padding:0 4px;">→</div>
+          <div class="fn-node c-cyan">📡 OPC-UA Server (asyncua :4840)<span class="fn-status badge-new">NEW</span></div>
+          <div style="display:flex;align-items:center;color:var(--text-dim);font-size:18px;padding:0 4px;">→</div>
+          <div class="fn-node c-cyan">🔌 OPC-UA Client + Subscriptions<span class="fn-status badge-new">NEW</span></div>
+        </div>
+      </div>
+
+      <div class="flow-layer">
+        <div class="fl-label">M1<br>Failure</div>
+        <div class="fl-nodes">
+          <div class="fn-node c-red">OPC Quality Codes (Bad/Uncertain)<span class="fn-status badge-new">NEW</span></div>
+          <div class="fn-node c-red">⏱ Watchdog Timer (45s silence)<span class="fn-status badge-new">NEW</span></div>
+          <div class="fn-node c-amber">MaxKeepAlive Subscription<span class="fn-status badge-new">NEW</span></div>
+        </div>
+      </div>
+
+      <div class="flow-layer">
+        <div class="fl-label">M1→M2<br>Bridge</div>
+        <div class="fl-nodes">
+          <div class="fn-node c-green">DataChangeHandler → Redis Pub/Sub<span class="fn-status badge-new">NEW</span></div>
+          <div style="font-size:10px;color:var(--text-dim);font-family:'DM Mono',monospace;display:flex;align-items:center;padding:0 4px;">event-driven push, not polling</div>
+        </div>
+      </div>
+
+      <div class="flow-layer">
+        <div class="fl-label">M2<br>Streaming</div>
+        <div class="fl-nodes">
+          <div class="fn-node c-amber">Redis Pub/Sub (6 subsystem channels)<span class="fn-status" style="background:rgba(71,85,105,0.2);color:var(--text-dim);">SAME</span></div>
+          <div class="fn-node c-green">FastAPI WebSocket broadcaster<span class="fn-status" style="background:rgba(71,85,105,0.2);color:var(--text-dim);">SAME</span></div>
+          <div class="fn-node c-amber">Redis Cache (10min buffer)<span class="fn-status badge-change">60s→10min</span></div>
+        </div>
+      </div>
+
+      <div class="flow-layer">
+        <div class="fl-label">M2<br>Alerts</div>
+        <div class="fl-nodes">
+          <div class="fn-node c-red">Alert Engine (6 alert types)<span class="fn-status badge-change">2→6 types</span></div>
+          <div class="fn-node c-red">SENSOR_FAULT (OPC Bad)<span class="fn-status badge-new">NEW</span></div>
+          <div class="fn-node c-amber">SENSOR_UNCERTAIN<span class="fn-status badge-new">NEW</span></div>
+          <div class="fn-node c-red">SENSOR_MISSING (watchdog)<span class="fn-status badge-new">NEW</span></div>
+          <div class="fn-node c-green">SENSOR_RECOVERED<span class="fn-status badge-new">NEW</span></div>
+        </div>
+      </div>
+
+      <div class="flow-layer">
+        <div class="fl-label">M2<br>Persist</div>
+        <div class="fl-nodes">
+          <div class="fn-node c-amber">Batch Writer (15s flush)<span class="fn-status badge-change">5s→15s</span></div>
+          <div class="fn-node c-green">TimescaleDB hypertable<span class="fn-status" style="background:rgba(71,85,105,0.2);color:var(--text-dim);">SAME</span></div>
+          <div class="fn-node c-purple">MinIO Parquet hourly<span class="fn-status" style="background:rgba(71,85,105,0.2);color:var(--text-dim);">SAME</span></div>
+        </div>
+      </div>
+
+      <div class="flow-layer">
+        <div class="fl-label">M3<br>APIs</div>
+        <div class="fl-nodes">
+          <div class="fn-node c-green">GET /data/sensors/current<span class="fn-status" style="background:rgba(71,85,105,0.2);color:var(--text-dim);">SAME</span></div>
+          <div class="fn-node c-green">GET /data/sensors/{id}/history<span class="fn-status" style="background:rgba(71,85,105,0.2);color:var(--text-dim);">SAME</span></div>
+          <div class="fn-node c-cyan">GET /data/sensors/compare?ids=<span class="fn-status badge-new">NEW</span></div>
+          <div class="fn-node c-red">GET /sensors/{id}/health<span class="fn-status badge-new">NEW</span></div>
+        </div>
+      </div>
+
+      <div class="flow-layer">
+        <div class="fl-label">M4<br>React</div>
+        <div class="fl-nodes">
+          <div class="fn-node c-cyan">500-sensor heatmap<span class="fn-status" style="background:rgba(71,85,105,0.2);color:var(--text-dim);">SAME</span></div>
+          <div class="fn-node c-cyan">Subsystem line charts<span class="fn-status" style="background:rgba(71,85,105,0.2);color:var(--text-dim);">SAME</span></div>
+          <div class="fn-node c-cyan">Sensor list with checkboxes<span class="fn-status badge-new">NEW</span></div>
+          <div class="fn-node c-cyan">Multi-sensor compare plot<span class="fn-status badge-new">NEW</span></div>
+          <div class="fn-node c-red">Fault/Stale/Uncertain indicators<span class="fn-status badge-new">NEW</span></div>
+          <div class="fn-node c-amber">Demo fault controls<span class="fn-status" style="background:rgba(71,85,105,0.2);color:var(--text-dim);">SAME</span></div>
+        </div>
+      </div>
+
+      <div class="flow-layer">
+        <div class="fl-label">M4<br>Flutter</div>
+        <div class="fl-nodes">
+          <div class="fn-node c-purple">6 subsystem status cards<span class="fn-status" style="background:rgba(71,85,105,0.2);color:var(--text-dim);">SAME</span></div>
+          <div class="fn-node c-purple">Sensor list with checkboxes<span class="fn-status badge-new">NEW</span></div>
+          <div class="fn-node c-purple">AppBar Compare button (cross-subsystem)<span class="fn-status badge-new">NEW</span></div>
+          <div class="fn-node c-purple">Multi-sensor overlay chart (fl_chart)<span class="fn-status badge-new">NEW</span></div>
+          <div class="fn-node c-red">Push notification on fault<span class="fn-status" style="background:rgba(71,85,105,0.2);color:var(--text-dim);">SAME</span></div>
+          <div class="fn-node c-red">Fault/Stale/Uncertain card states<span class="fn-status badge-new">NEW</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══ CHANGE REGISTER ══ -->
+<div class="section" id="changes">
+  <div class="sec-eyebrow">Section 03</div>
+  <div class="sec-title">Complete Change Register</div>
+  <div class="sec-desc">Every single item that changed from v1.0 (original plan) to v2.0 (after client discussion).</div>
+
+  <table class="change-table">
+    <thead>
+      <tr>
+        <th>Area</th>
+        <th>v1.0 (Before)</th>
+        <th>v2.0 (After)</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="td-area">Deployment</td>
+        <td class="td-from">Single Docker Compose on one machine, all loopback host</td>
+        <td class="td-to">4 separate machines on LAN, IP-based config via .env, no loopback host</td>
+        <td><span class="status-pill" style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,0.25);">● CHANGED</span></td>
+      </tr>
+      <tr>
+        <td class="td-area">Data Source</td>
+        <td class="td-from">Python simulator directly publishes to Redis</td>
+        <td class="td-to">Python simulator → OPC-UA Server → OPC-UA Client → Redis. Same simulator, now wrapped in OPC-UA layer</td>
+        <td><span class="status-pill" style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,0.25);">● CHANGED</span></td>
+      </tr>
+      <tr>
+        <td class="td-area">OPC-UA Server</td>
+        <td class="td-from">Not existed</td>
+        <td class="td-to">New asyncua OPC-UA server on Machine 1, exposes 500 sensor nodes as OPC-UA address space. Port 4840.</td>
+        <td><span class="status-pill" style="background:var(--green-dim);color:var(--green);border:1px solid rgba(16,185,129,0.25);">+ NEW</span></td>
+      </tr>
+      <tr>
+        <td class="td-area">OPC-UA Client</td>
+        <td class="td-from">Not existed</td>
+        <td class="td-to">New asyncua OPC-UA client with Subscription + MonitoredItems. Per-sensor sampling intervals. MaxKeepAlive=3. DataChangeHandler fires on value change or keepalive.</td>
+        <td><span class="status-pill" style="background:var(--green-dim);color:var(--green);border:1px solid rgba(16,185,129,0.25);">+ NEW</span></td>
+      </tr>
+      <tr>
+        <td class="td-area">Tick / Frequency</td>
+        <td class="td-from">1 second fixed for all sensors</td>
+        <td class="td-to">Per-sensor configurable: Generator 2s, Boiler 5s, Turbine 10s, others 15s. Driven by OPC-UA MonitoredItem intervals.</td>
+        <td><span class="status-pill" style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,0.25);">● CHANGED</span></td>
+      </tr>
+      <tr>
+        <td class="td-area">Sensor Failure</td>
+        <td class="td-from">Not handled at all</td>
+        <td class="td-to">4-layer defense: OPC quality codes, MaxKeepAlive subscription, Watchdog timer (45s), UI staleness indicators</td>
+        <td><span class="status-pill" style="background:var(--green-dim);color:var(--green);border:1px solid rgba(16,185,129,0.25);">+ NEW</span></td>
+      </tr>
+      <tr>
+        <td class="td-area">Alert Types</td>
+        <td class="td-from">2 types: Warning (80%), Critical (100%)</td>
+        <td class="td-to">6 types: Warning, Critical, Sensor Fault (OPC Bad), Sensor Uncertain, Sensor Missing (watchdog), Sensor Recovered</td>
+        <td><span class="status-pill" style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,0.25);">● CHANGED</span></td>
+      </tr>
+      <tr>
+        <td class="td-area">Redis Buffer</td>
+        <td class="td-from">60 second rolling window</td>
+        <td class="td-to">10 minute rolling window (sensors update every 10-15s now, 60s is only 4-6 readings — not enough)</td>
+        <td><span class="status-pill" style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,0.25);">● CHANGED</span></td>
+      </tr>
+      <tr>
+        <td class="td-area">Batch Write</td>
+        <td class="td-from">Flush to TimescaleDB every 5 seconds</td>
+        <td class="td-to">Flush every 15 seconds. Sensors update 10-15s, so 5s flush was over-engineering. Reduces DB write pressure.</td>
+        <td><span class="status-pill" style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,0.25);">● CHANGED</span></td>
+      </tr>
+      <tr>
+        <td class="td-area">Compare API</td>
+        <td class="td-from">Not existed</td>
+        <td class="td-to">New GET /data/sensors/compare?ids=T001,T003,B012&minutes=60. Time-aligned multi-sensor query from TimescaleDB continuous aggregate.</td>
+        <td><span class="status-pill" style="background:var(--green-dim);color:var(--green);border:1px solid rgba(16,185,129,0.25);">+ NEW</span></td>
+      </tr>
+      <tr>
+        <td class="td-area">React — Sensor List</td>
+        <td class="td-from">Sensor clicked on heatmap → modal detail</td>
+        <td class="td-to">Dedicated Sensor List section in React sidebar. Checkbox selection per sensor. Cross-subsystem. Persistent compare button in header showing count. Compare plot screen.</td>
+        <td><span class="status-pill" style="background:var(--green-dim);color:var(--green);border:1px solid rgba(16,185,129,0.25);">+ NEW</span></td>
+      </tr>
+      <tr>
+        <td class="td-area">React — Fault UI</td>
+        <td class="td-from">Alert panel shows threshold alerts only</td>
+        <td class="td-to">Heatmap cells show Fault/Stale/Uncertain states with distinct icons. Alert panel shows all 6 alert types. Data freshness timestamp per sensor.</td>
+        <td><span class="status-pill" style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,0.25);">● CHANGED</span></td>
+      </tr>
+      <tr>
+        <td class="td-area">Flutter — Compare</td>
+        <td class="td-from">Single sensor sparkline only</td>
+        <td class="td-to">Sensor list with checkboxes per subsystem. AppBar COMPARE button (persistent, shows count + "N subsystems"). Cross-subsystem selection. Overlay chart with dual Y-axis if units differ. Clear selection option.</td>
+        <td><span class="status-pill" style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,0.25);">● CHANGED</span></td>
+      </tr>
+      <tr>
+        <td class="td-area">Flutter — Network</td>
+        <td class="td-from">Connects to loopback host:8000</td>
+        <td class="td-to">Settings screen with configurable BASE_URL. Default to Machine 2 LAN IP. No rebuild required to change server IP.</td>
+        <td><span class="status-pill" style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,0.25);">● CHANGED</span></td>
+      </tr>
+      <tr>
+        <td class="td-area">TimescaleDB schema</td>
+        <td class="td-from">readings, sensors, alerts tables</td>
+        <td class="td-to">Same tables + sensor_health table (last_seen, status, quality_code). alerts table gets new severity values: sensor_fault, sensor_missing, sensor_uncertain, recovered.</td>
+        <td><span class="status-pill" style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,0.25);">● CHANGED</span></td>
+      </tr>
+      <tr>
+        <td class="td-area">Production swap</td>
+        <td class="td-from">Not planned</td>
+        <td class="td-to">OPC_SERVER_URL env var on Machine 1. Demo: opc.tcp://machine1-ip:4840 (simulator). Production: opc.tcp://dcs-ip:4840 (real BHEL DCS). One line change.</td>
+        <td><span class="status-pill" style="background:var(--green-dim);color:var(--green);border:1px solid rgba(16,185,129,0.25);">+ NEW</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══ OPC LAYER ══ -->
+<div class="section" id="opc-layer">
+  <div class="sec-eyebrow">Section 04 — New Component</div>
+  <div class="sec-title">OPC-UA Layer Detail</div>
+  <div class="sec-desc">What Machine 1 runs. Three services working together: Simulator → OPC-UA Server → OPC-UA Client → Redis.</div>
+
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:16px;">
+    <div style="font-size:11px;letter-spacing:2px;color:var(--cyan);font-family:'DM Mono',monospace;margin-bottom:16px;">MACHINE 1 — INTERNAL FLOW</div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div style="background:var(--purple-dim);border:1px solid rgba(139,92,246,0.25);border-radius:8px;padding:12px 16px;text-align:center;">
+        <div style="font-size:12px;font-weight:700;color:#a78bfa;margin-bottom:4px;">Python Simulator</div>
+        <div style="font-size:9px;color:var(--text-dim);font-family:'DM Mono',monospace;">generates 500 values</div>
+      </div>
+      <div style="text-align:center;"><div style="color:var(--cyan);font-size:16px;">→</div><div style="font-size:8px;color:var(--text-dim);font-family:'DM Mono',monospace;">feeds into</div></div>
+      <div style="background:var(--cyan-dim);border:1px solid rgba(34,211,238,0.25);border-radius:8px;padding:12px 16px;text-align:center;">
+        <div style="font-size:12px;font-weight:700;color:var(--cyan);margin-bottom:4px;">OPC-UA Server</div>
+        <div style="font-size:9px;color:var(--text-dim);font-family:'DM Mono',monospace;">asyncua · port 4840</div>
+      </div>
+      <div style="text-align:center;"><div style="color:var(--cyan);font-size:16px;">→</div><div style="font-size:8px;color:var(--text-dim);font-family:'DM Mono',monospace;">subscription</div></div>
+      <div style="background:var(--cyan-dim);border:1px solid rgba(34,211,238,0.25);border-radius:8px;padding:12px 16px;text-align:center;">
+        <div style="font-size:12px;font-weight:700;color:var(--cyan);margin-bottom:4px;">OPC-UA Client</div>
+        <div style="font-size:9px;color:var(--text-dim);font-family:'DM Mono',monospace;">MonitoredItems</div>
+      </div>
+      <div style="text-align:center;"><div style="color:var(--green);font-size:16px;">→</div><div style="font-size:8px;color:var(--text-dim);font-family:'DM Mono',monospace;">on change</div></div>
+      <div style="background:var(--green-dim);border:1px solid rgba(16,185,129,0.25);border-radius:8px;padding:12px 16px;text-align:center;">
+        <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:4px;">DataChangeHandler</div>
+        <div style="font-size:9px;color:var(--text-dim);font-family:'DM Mono',monospace;">→ Redis Pub/Sub M2</div>
+      </div>
+    </div>
+    <div style="margin-top:20px;padding:14px;background:var(--bg3);border-radius:8px;font-size:11px;line-height:1.8;color:rgba(226,232,240,0.55);">
+      <strong style="color:var(--amber);">Production swap:</strong> When BHEL connects real DCS — change <code style="color:var(--cyan);font-family:'DM Mono',monospace;">OPC_SERVER_URL=opc.tcp://dcs-ip:4840</code> in Machine 1 .env. The OPC-UA Client, DataChangeHandler, and everything downstream on Machine 2 is <strong style="color:var(--green);">completely unchanged.</strong>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SENSOR FAILURE ══ -->
+<div class="section" id="failure">
+  <div class="sec-eyebrow">Section 05 — New Component</div>
+  <div class="sec-title">Sensor Failure Handling — 4 Layers</div>
+  <div class="sec-desc">The "silent failure" problem: a dead sensor and a stable sensor both produce silence. All 4 layers work together to detect and surface every failure mode.</div>
+
+  <div class="failure-layers">
+    <div class="failure-layer" style="background:var(--cyan-dim);border-color:rgba(34,211,238,0.25);">
+      <div class="fl-num" style="background:rgba(34,211,238,0.15);color:var(--cyan);border:1px solid rgba(34,211,238,0.3);">1</div>
+      <div class="fl-body" style="flex:1;">
+        <div class="fl-title" style="color:var(--cyan);">OPC-UA Quality Codes — Hardware failures</div>
+        <div class="fl-desc">Every OPC-UA reading carries a StatusCode. When a sensor physically fails, cable breaks, or field device times out — the DCS marks that tag as Bad quality and pushes a notification immediately. No polling wait.</div>
+        <div class="fl-code"><span class="cm"># StatusCode values from OPC-UA server:</span>
+Good               <span class="cm">→ normal processing</span>
+Bad_NodeIdUnknown  <span class="cm">→ sensor disconnected</span>
+Bad_Timeout        <span class="cm">→ field device not responding</span>
+Bad_OutOfService   <span class="cm">→ sensor marked offline</span>
+Uncertain_LastUsableValue <span class="cm">→ questionable, flag it</span></div>
+      </div>
+    </div>
+
+    <div class="failure-layer" style="background:var(--amber-dim);border-color:rgba(245,158,11,0.25);">
+      <div class="fl-num" style="background:rgba(245,158,11,0.15);color:var(--amber);border:1px solid rgba(245,158,11,0.3);">2</div>
+      <div class="fl-body" style="flex:1;">
+        <div class="fl-title" style="color:var(--amber);">OPC-UA MaxKeepAlive — Stable sensor silence</div>
+        <div class="fl-desc">Subscription config: max_keepalive_count=3 at 10s publishing interval = server MUST send a keepalive notification every 30 seconds even if no value changed. Stable sensor at 85°C still produces a heartbeat every 30s. If keepalive stops → sensor is gone.</div>
+        <div class="fl-code"><span class="cm"># Subscription config on OPC-UA client:</span>
+subscription = <span class="kw">await</span> client.<span class="fn">create_subscription</span>(
+    period=<span class="num">10000</span>,           <span class="cm"># 10s publishing interval</span>
+    max_keepalive_count=<span class="num">3</span>,  <span class="cm"># keepalive every 30s max</span>
+    handler=handler
+)</div>
+      </div>
+    </div>
+
+    <div class="failure-layer" style="background:var(--red-dim);border-color:rgba(244,63,94,0.25);">
+      <div class="fl-num" style="background:rgba(244,63,94,0.15);color:var(--red);border:1px solid rgba(244,63,94,0.3);">3</div>
+      <div class="fl-body" style="flex:1;">
+        <div class="fl-title" style="color:var(--red);">Application Watchdog Timer — Network/OPC failures</div>
+        <div class="fl-desc">Runs in FastAPI on Machine 2. Tracks last_seen timestamp per sensor. If no notification (value change OR keepalive) for 45 seconds → fires SENSOR_MISSING alert. Also detects recovery — when data resumes, fires SENSOR_RECOVERED alert.</div>
+        <div class="fl-code"><span class="cm"># Watchdog checks every 15 seconds:</span>
+<span class="kw">if</span> (now - last_seen[sensor_id]) > <span class="num">45</span>:
+    fire_alert(<span class="str">"SENSOR_MISSING"</span>, sensor_id)
+
+<span class="cm"># On next notification arrival:</span>
+<span class="kw">if</span> sensor_id <span class="kw">in</span> fault_sensors:
+    fire_alert(<span class="str">"SENSOR_RECOVERED"</span>, sensor_id)</div>
+      </div>
+    </div>
+
+    <div class="failure-layer" style="background:var(--green-dim);border-color:rgba(16,185,129,0.25);">
+      <div class="fl-num" style="background:rgba(16,185,129,0.15);color:var(--green);border:1px solid rgba(16,185,129,0.3);">4</div>
+      <div class="fl-body" style="flex:1;">
+        <div class="fl-title" style="color:var(--green);">UI Staleness Indicators — Operator visibility</div>
+        <div class="fl-desc">Both React and Flutter show data freshness state on every sensor. Four distinct visual states ensure operators always know exactly what they're looking at.</div>
+        <div class="fl-code">● LIVE       <span class="cm">→ Green  · updated within 2× expected interval</span>
+⚠ STALE      <span class="cm">→ Amber  · last update > 2× expected interval</span>
+~ UNCERTAIN  <span class="cm">→ Yellow · OPC quality = Uncertain</span>
+✕ FAULT      <span class="cm">→ Red    · SENSOR_MISSING or SENSOR_FAULT alert</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ALERTS ══ -->
+<div class="section" id="alerts">
+  <div class="sec-eyebrow">Section 06 — Updated</div>
+  <div class="sec-title">Alert System — 6 Types</div>
+  <div class="sec-desc">Expanded from 2 to 6 alert types. All go through the same Redis alerts channel → WebSocket → both React and Flutter.</div>
+
+  <div class="alert-grid">
+    <div class="alert-card" style="background:var(--amber-dim);border-color:rgba(245,158,11,0.25);">
+      <div class="ac-type" style="color:var(--amber);">TYPE 01</div>
+      <div class="ac-title" style="color:var(--amber);">⚠ Warning Threshold</div>
+      <div class="ac-trigger">Value reaches 80% of max_threshold. Sensor still functioning. Early warning for operators.</div>
+      <div class="ac-source" style="color:var(--text-dim);">SOURCE: Alert Engine (in-memory) · EXISTING</div>
+    </div>
+    <div class="alert-card" style="background:var(--red-dim);border-color:rgba(244,63,94,0.25);">
+      <div class="ac-type" style="color:var(--red);">TYPE 02</div>
+      <div class="ac-title" style="color:var(--red);">🔴 Critical Threshold</div>
+      <div class="ac-trigger">Value reaches 100% of max_threshold. Immediate attention required. Deduplication — one alert per event.</div>
+      <div class="ac-source" style="color:var(--text-dim);">SOURCE: Alert Engine (in-memory) · EXISTING</div>
+    </div>
+    <div class="alert-card" style="background:var(--red-dim);border-color:rgba(244,63,94,0.35);">
+      <div class="ac-type" style="color:var(--red);">TYPE 03</div>
+      <div class="ac-title" style="color:var(--red);">✕ Sensor Fault</div>
+      <div class="ac-trigger">OPC-UA StatusCode = Bad. Sensor physically failed, cable broken, or field device not responding. Fired immediately on OPC notification.</div>
+      <div class="ac-source" style="color:var(--green);">SOURCE: OPC DataChangeHandler · NEW</div>
+    </div>
+    <div class="alert-card" style="background:var(--amber-dim);border-color:rgba(245,158,11,0.2);">
+      <div class="ac-type" style="color:var(--amber);">TYPE 04</div>
+      <div class="ac-title" style="color:var(--amber);">~ Sensor Uncertain</div>
+      <div class="ac-trigger">OPC-UA StatusCode = Uncertain. Data is questionable but last known value provided. Show in UI with uncertainty flag.</div>
+      <div class="ac-source" style="color:var(--green);">SOURCE: OPC DataChangeHandler · NEW</div>
+    </div>
+    <div class="alert-card" style="background:var(--red-dim);border-color:rgba(244,63,94,0.25);">
+      <div class="ac-type" style="color:var(--red);">TYPE 05</div>
+      <div class="ac-title" style="color:var(--red);">⏱ Sensor Missing</div>
+      <div class="ac-trigger">No notification (value or keepalive) received for 45 seconds. Covers network failures and OPC-UA server crashes that produce no Bad quality code.</div>
+      <div class="ac-source" style="color:var(--green);">SOURCE: Watchdog Timer · NEW</div>
+    </div>
+    <div class="alert-card" style="background:var(--green-dim);border-color:rgba(16,185,129,0.25);">
+      <div class="ac-type" style="color:var(--green);">TYPE 06</div>
+      <div class="ac-title" style="color:var(--green);">✓ Sensor Recovered</div>
+      <div class="ac-trigger">Data resumes after a FAULT or MISSING state. Fired when Watchdog sees first notification from a previously faulted sensor. Info severity.</div>
+      <div class="ac-source" style="color:var(--green);">SOURCE: Watchdog Timer · NEW</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COMPARE ══ -->
+<div class="section" id="compare">
+  <div class="sec-eyebrow">Section 07 — New Feature</div>
+  <div class="sec-title">Multi-Sensor Comparison</div>
+  <div class="sec-desc">Available on both React and Flutter. Cross-subsystem selection. Single overlay chart. New backend endpoint required.</div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+
+    <!-- React flow -->
+    <div class="compare-flow">
+      <div class="cf-header" style="color:var(--cyan);">🖥️ React Dashboard — Compare Flow</div>
+      <div class="cf-body">
+        <div class="cf-steps">
+          <div class="cf-step">
+            <div class="cf-step-num">1</div>
+            <div class="cf-step-body">
+              <div class="cf-step-title">Sensor List Section (sidebar)</div>
+              <div class="cf-step-desc">Dedicated section in React sidebar. Lists all sensors grouped by subsystem. Each row has a checkbox. User can select across subsystems freely.</div>
+            </div>
+          </div>
+          <div class="cf-step">
+            <div class="cf-step-num">2</div>
+            <div class="cf-step-body">
+              <div class="cf-step-title">Compare Button in Header</div>
+              <div class="cf-step-desc">Persistent in top header. Shows count: "COMPARE (3) · 2 subsystems". Activates when ≥2 sensors selected. Clear All option.</div>
+            </div>
+          </div>
+          <div class="cf-step">
+            <div class="cf-step-num">3</div>
+            <div class="cf-step-body">
+              <div class="cf-step-title">Compare Chart View</div>
+              <div class="cf-step-desc">Replaces main content area. Plotly line chart, one trace per sensor, color-coded. Dual Y-axis if units differ. Time range selector: 15min / 1hr / 6hr.</div>
+            </div>
+          </div>
+          <div class="cf-step">
+            <div class="cf-step-num">4</div>
+            <div class="cf-step-body">
+              <div class="cf-step-title">Data Source</div>
+              <div class="cf-step-desc">Calls GET /data/sensors/compare?ids=T001,T003,B012&minutes=60. TimescaleDB returns time-aligned readings for all selected sensors.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Flutter flow -->
+    <div class="compare-flow">
+      <div class="cf-header" style="color:var(--purple);">📱 Flutter App — Compare Flow</div>
+      <div class="cf-body">
+        <div class="cf-steps">
+          <div class="cf-step">
+            <div class="cf-step-num">1</div>
+            <div class="cf-step-body">
+              <div class="cf-step-title">Sensor List with Checkboxes</div>
+              <div class="cf-step-desc">Each subsystem screen shows all sensors with checkboxes. User selects T001, T003 from Turbine screen.</div>
+            </div>
+          </div>
+          <div class="cf-step">
+            <div class="cf-step-num">2</div>
+            <div class="cf-step-body">
+              <div class="cf-step-title">Go Back — Select from Another Subsystem</div>
+              <div class="cf-step-desc">User taps back to home. Goes to Boiler. Selects B012. Selection persists across navigation. AppBar shows: "COMPARE (3) · 2 subsystems".</div>
+            </div>
+          </div>
+          <div class="cf-step">
+            <div class="cf-step-num">3</div>
+            <div class="cf-step-body">
+              <div class="cf-step-title">Tap COMPARE in AppBar</div>
+              <div class="cf-step-desc">Navigates to Compare Chart Screen. fl_chart LineChart with multiple traces. Dual Y-axis if units differ (°C left, bar right).</div>
+            </div>
+          </div>
+          <div class="cf-step">
+            <div class="cf-step-num">4</div>
+            <div class="cf-step-body">
+              <div class="cf-step-title">Clear and Start Over</div>
+              <div class="cf-step-desc">"Clear All" button on compare screen resets selection. User can start a new comparison without going back through all subsystems.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- New endpoint -->
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;">
+    <div style="font-size:10px;letter-spacing:2px;color:var(--text-dim);font-family:'DM Mono',monospace;margin-bottom:10px;">NEW BACKEND ENDPOINT REQUIRED</div>
+    <div class="endpoint-box">
+<span style="color:var(--green);">GET</span> <span style="color:var(--cyan);">/data/sensors/compare</span>?ids=T001,T003,B012&minutes=60
+
+<span style="color:var(--text-dim);">-- TimescaleDB query (time-aligned, all sensors together):</span>
+<span style="color:#c792ea;">SELECT</span> time_bucket(<span style="color:#c3e88d;">'15 seconds'</span>, time) <span style="color:#c792ea;">as</span> bucket,
+       sensor_id,
+       avg(value) <span style="color:#c792ea;">as</span> value
+<span style="color:#c792ea;">FROM</span> readings
+<span style="color:#c792ea;">WHERE</span> sensor_id = <span style="color:#c792ea;">ANY</span>('{T001,T003,B012}')
+<span style="color:#c792ea;">AND</span> time > NOW() - INTERVAL <span style="color:#c3e88d;">'60 minutes'</span>
+<span style="color:#c792ea;">GROUP BY</span> bucket, sensor_id
+<span style="color:#c792ea;">ORDER BY</span> bucket <span style="color:#c792ea;">ASC</span>
+
+<span style="color:var(--text-dim);">-- Response: time-aligned array, one row per sensor per bucket</span>
+<span style="color:var(--text-dim);">-- Frontend plots each sensor_id as a separate trace</span></div>
+  </div>
+</div>
+
+<!-- ══ PHASE PLAN ══ -->
+<div class="section" id="phases">
+  <div class="sec-eyebrow">Section 08</div>
+  <div class="sec-title">Updated Build Phases — 10 Total</div>
+  <div class="sec-desc">Revised from 8 to 10 phases. OPC-UA layer and Sensor Failure get dedicated phases. Single developer sequence — each phase must be complete before the next begins.</div>
+
+  <div class="phase-list">
+
+    <div class="phase-item">
+      <div class="pi-left">
+        <div class="pi-num">PHASE 01</div>
+        <div class="pi-name">Foundation</div>
+        <div class="pi-days">~1 day <span style="color:var(--text-dim);">· SAME</span></div>
+      </div>
+      <div class="pi-right">
+        <div class="pi-items">
+          <div class="pi-item">Docker Compose per machine (4 separate files) <span class="pi-changed" style="background:var(--amber-dim);color:var(--amber);">CHANGED from single compose</span></div>
+          <div class="pi-item">All service URLs via .env — DB_HOST, REDIS_HOST, API_BASE_URL (LAN IPs, no loopback host)</div>
+          <div class="pi-item">TimescaleDB schema: readings, sensors, alerts + new sensor_health table <span class="pi-changed" style="background:var(--green-dim);color:var(--green);">NEW table</span></div>
+          <div class="pi-item">alerts table: add severity values for sensor_fault, sensor_missing, sensor_uncertain, recovered</div>
+          <div class="pi-item">GET /health checks all 4 services across machines</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase-item">
+      <div class="pi-left">
+        <div class="pi-num">PHASE 02</div>
+        <div class="pi-name">Simulator</div>
+        <div class="pi-days">~2 days <span style="color:var(--text-dim);">· SAME</span></div>
+      </div>
+      <div class="pi-right">
+        <div class="pi-items">
+          <div class="pi-item">Python SimulatorService with 500 sensors — same as original plan</div>
+          <div class="pi-item">Gaussian noise, slow drift, anomaly injection — unchanged</div>
+          <div class="pi-item">DataSource interface: SimulatorSource class — production swap point</div>
+          <div class="pi-item">GET /simulator/readings, POST /simulator/fault/{id} endpoints</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase-item">
+      <div class="pi-left">
+        <div class="pi-num">PHASE 03</div>
+        <div class="pi-name" style="color:var(--cyan);">OPC-UA Layer</div>
+        <div class="pi-days">~2 days <span style="color:var(--green);">· NEW</span></div>
+      </div>
+      <div class="pi-right">
+        <div class="pi-items">
+          <div class="pi-item" style="color:var(--cyan);">OPC-UA Server wrapper around simulator using asyncua library</div>
+          <div class="pi-item" style="color:var(--cyan);">Expose all 500 sensors as OPC-UA nodes in address space: Root→Plant→Subsystem→SensorID</div>
+          <div class="pi-item" style="color:var(--cyan);">OPC-UA Client with Subscription + 500 MonitoredItems</div>
+          <div class="pi-item" style="color:var(--cyan);">Per-sensor sampling intervals: Generator 2s, Boiler 5s, Turbine 10s, rest 15s</div>
+          <div class="pi-item" style="color:var(--cyan);">MaxKeepAlive=3 on subscription (keepalive every 30s)</div>
+          <div class="pi-item" style="color:var(--cyan);">DataChangeHandler fires on value change OR keepalive → publishes to Redis</div>
+          <div class="pi-item" style="color:var(--cyan);">OPC_SERVER_URL env var — configurable for production DCS swap</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase-item">
+      <div class="pi-left">
+        <div class="pi-num">PHASE 04</div>
+        <div class="pi-name" style="color:var(--red);">Sensor Failure</div>
+        <div class="pi-days">~1 day <span style="color:var(--green);">· NEW</span></div>
+      </div>
+      <div class="pi-right">
+        <div class="pi-items">
+          <div class="pi-item" style="color:var(--red);">OPC quality code handler in DataChangeHandler — detect Bad/Uncertain StatusCodes</div>
+          <div class="pi-item" style="color:var(--red);">SensorWatchdog class on Machine 2 — tracks last_seen per sensor, fires after 45s silence</div>
+          <div class="pi-item" style="color:var(--red);">sensor_health table writes: last_seen, status, quality_code per sensor</div>
+          <div class="pi-item" style="color:var(--red);">SENSOR_FAULT, SENSOR_UNCERTAIN, SENSOR_MISSING, SENSOR_RECOVERED alert types</div>
+          <div class="pi-item" style="color:var(--red);">GET /sensors/{id}/health endpoint — current health state per sensor</div>
+          <div class="pi-item" style="color:var(--red);">Watchdog check loop runs every 15 seconds as FastAPI background task</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase-item">
+      <div class="pi-left">
+        <div class="pi-num">PHASE 05</div>
+        <div class="pi-name">WebSocket Stream</div>
+        <div class="pi-days">~2 days <span style="color:var(--amber);">· UPDATED</span></div>
+      </div>
+      <div class="pi-right">
+        <div class="pi-items">
+          <div class="pi-item">Redis Pub/Sub subscriber, ConnectionManager — same as original</div>
+          <div class="pi-item">WS /ws/live for sensor data, WS /ws/alerts for alert events — same</div>
+          <div class="pi-item">Redis rolling buffer: extend from 60s to 10 minutes <span class="pi-changed" style="background:var(--amber-dim);color:var(--amber);">CHANGED</span></div>
+          <div class="pi-item">On new client connect: send 10min buffer (sensors update every 10-15s now, need meaningful history)</div>
+          <div class="pi-item">WS /ws/alerts now carries all 6 alert types including sensor fault/missing/recovered</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase-item">
+      <div class="pi-left">
+        <div class="pi-num">PHASE 06</div>
+        <div class="pi-name">Persistence</div>
+        <div class="pi-days">~1 day <span style="color:var(--amber);">· UPDATED</span></div>
+      </div>
+      <div class="pi-right">
+        <div class="pi-items">
+          <div class="pi-item">BatchWriter: flush every 15s instead of 5s <span class="pi-changed" style="background:var(--amber-dim);color:var(--amber);">CHANGED</span></div>
+          <div class="pi-item">Sensor registry seed on startup — same</div>
+          <div class="pi-item">GET /data/sensors/current, GET /data/sensors/{id}/history — same</div>
+          <div class="pi-item">GET /data/sensors/compare?ids=&minutes= — new multi-sensor time-aligned query <span class="pi-changed" style="background:var(--green-dim);color:var(--green);">NEW</span></div>
+          <div class="pi-item">GET /data/subsystems/{name}/summary — same</div>
+          <div class="pi-item">Continuous aggregate readings_1min — same</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase-item">
+      <div class="pi-left">
+        <div class="pi-num">PHASE 07</div>
+        <div class="pi-name">Alert Engine</div>
+        <div class="pi-days">~1 day <span style="color:var(--amber);">· UPDATED</span></div>
+      </div>
+      <div class="pi-right">
+        <div class="pi-items">
+          <div class="pi-item">Threshold alert deduplication logic — same</div>
+          <div class="pi-item">Alert engine now handles all 6 alert types <span class="pi-changed" style="background:var(--amber-dim);color:var(--amber);">CHANGED</span></div>
+          <div class="pi-item">SENSOR_FAULT/UNCERTAIN from OPC quality codes (Phase 04 feeds this)</div>
+          <div class="pi-item">SENSOR_MISSING/RECOVERED from Watchdog (Phase 04 feeds this)</div>
+          <div class="pi-item">All alerts persist to TimescaleDB alerts table with correct severity column</div>
+          <div class="pi-item">GET /alerts?acknowledged=false, POST /alerts/{id}/acknowledge — same</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase-item">
+      <div class="pi-left">
+        <div class="pi-num">PHASE 08</div>
+        <div class="pi-name">React Dashboard</div>
+        <div class="pi-days">~3 days <span style="color:var(--amber);">· UPDATED</span></div>
+      </div>
+      <div class="pi-right">
+        <div class="pi-items">
+          <div class="pi-item">All original charts: heatmap, line charts, gauges — same</div>
+          <div class="pi-item">Heatmap: 4 cell states (Live/Stale/Uncertain/Fault) with distinct visual treatment <span class="pi-changed" style="background:var(--green-dim);color:var(--green);">NEW</span></div>
+          <div class="pi-item">Sensor List section in sidebar: all 500 sensors with subsystem grouping and checkboxes <span class="pi-changed" style="background:var(--green-dim);color:var(--green);">NEW</span></div>
+          <div class="pi-item">Compare button in header (persistent, shows count + subsystem count) <span class="pi-changed" style="background:var(--green-dim);color:var(--green);">NEW</span></div>
+          <div class="pi-item">Compare Chart view: Plotly multi-trace, dual Y-axis, time range selector <span class="pi-changed" style="background:var(--green-dim);color:var(--green);">NEW</span></div>
+          <div class="pi-item">Alert panel handles all 6 alert types with distinct icons/colors</div>
+          <div class="pi-item">Plotly.js bundled locally — air-gap safe — same</div>
+          <div class="pi-item">Demo fault controls (3 named scenarios) — same</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase-item">
+      <div class="pi-left">
+        <div class="pi-num">PHASE 09</div>
+        <div class="pi-name">Flutter App</div>
+        <div class="pi-days">~2 days <span style="color:var(--amber);">· UPDATED</span></div>
+      </div>
+      <div class="pi-right">
+        <div class="pi-items">
+          <div class="pi-item">Settings screen with configurable BASE_URL — no rebuild needed for IP change <span class="pi-changed" style="background:var(--green-dim);color:var(--green);">NEW</span></div>
+          <div class="pi-item">6 subsystem status cards — same</div>
+          <div class="pi-item">Sensor list with checkboxes per subsystem screen <span class="pi-changed" style="background:var(--green-dim);color:var(--green);">NEW</span></div>
+          <div class="pi-item">AppBar COMPARE button: persistent, shows count + "N subsystems", cross-subsystem selection <span class="pi-changed" style="background:var(--green-dim);color:var(--green);">NEW</span></div>
+          <div class="pi-item">Compare Chart Screen: fl_chart multi-trace, dual Y-axis if units differ <span class="pi-changed" style="background:var(--green-dim);color:var(--green);">NEW</span></div>
+          <div class="pi-item">Sensor card states: Live/Stale/Uncertain/Fault with visual indicators <span class="pi-changed" style="background:var(--green-dim);color:var(--green);">NEW</span></div>
+          <div class="pi-item">Push notifications for all critical alert types — same core, extended for fault types</div>
+          <div class="pi-item">Alert screen handles all 6 types with correct icons</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase-item">
+      <div class="pi-left">
+        <div class="pi-num">PHASE 10</div>
+        <div class="pi-name">Demo Polish</div>
+        <div class="pi-days">~1 day <span style="color:var(--amber);">· UPDATED</span></div>
+      </div>
+      <div class="pi-right">
+        <div class="pi-items">
+          <div class="pi-item">All original demo polish tasks — same</div>
+          <div class="pi-item">Test OPC-UA server start on Machine 1, verify client connects and subscribes <span class="pi-changed" style="background:var(--amber-dim);color:var(--amber);">UPDATED</span></div>
+          <div class="pi-item">Sensor failure demo: simulate OPC Bad quality → watch FAULT alert fire in UI</div>
+          <div class="pi-item">Sensor missing demo: stop simulator → watch Watchdog fire MISSING after 45s</div>
+          <div class="pi-item">Multi-sensor compare demo script: select T001 + T003 + B012, show overlay chart</div>
+          <div class="pi-item">Flutter BASE_URL set to Machine 2 LAN IP — verified working on phone</div>
+          <div class="pi-item">BHEL plant name on all screens. Backup recording. Air-gap test.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Timeline summary -->
+  <div style="margin-top:20px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;display:flex;gap:32px;flex-wrap:wrap;">
+    <div><div style="font-size:9px;color:var(--text-dim);font-family:'DM Mono',monospace;letter-spacing:1px;margin-bottom:4px;">WITHOUT FLUTTER</div><div style="font-size:22px;font-weight:700;color:var(--cyan);">13 days</div></div>
+    <div><div style="font-size:9px;color:var(--text-dim);font-family:'DM Mono',monospace;letter-spacing:1px;margin-bottom:4px;">WITH FLUTTER</div><div style="font-size:22px;font-weight:700;color:var(--purple);">15 days</div></div>
+    <div><div style="font-size:9px;color:var(--text-dim);font-family:'DM Mono',monospace;letter-spacing:1px;margin-bottom:4px;">BUFFER RECOMMENDED</div><div style="font-size:22px;font-weight:700;color:var(--amber);">+2 days</div></div>
+    <div style="margin-left:auto;display:flex;align-items:center;"><div style="font-size:12px;color:rgba(226,232,240,0.4);font-family:'DM Mono',monospace;line-height:1.8;">OPC-UA Phase 03 is the highest risk.<br>asyncua library — test connection early.<br>Never skip Phase 10 demo polish.</div></div>
+  </div>
+</div>
+
+<!-- ══ PROMPTS NOTE ══ -->
+<div class="section" id="prompts-note">
+  <div class="sec-eyebrow">Section 09</div>
+  <div class="sec-title">Prompt Writing Strategy</div>
+  <div class="sec-desc">How to approach the updated prompts. What needs new prompts, what needs updated prompts, what stays the same.</div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+    <div style="background:var(--green-dim);border:1px solid rgba(16,185,129,0.25);border-radius:10px;padding:18px;">
+      <div style="font-size:10px;letter-spacing:1px;color:var(--green);font-family:'DM Mono',monospace;margin-bottom:10px;">WRITE BRAND NEW PROMPTS</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="font-size:11px;color:rgba(226,232,240,0.7);">→ Phase 03: OPC-UA Server</div>
+        <div style="font-size:11px;color:rgba(226,232,240,0.7);">→ Phase 03: OPC-UA Client + Subscriptions</div>
+        <div style="font-size:11px;color:rgba(226,232,240,0.7);">→ Phase 04: Sensor Failure + Watchdog</div>
+        <div style="font-size:11px;color:rgba(226,232,240,0.7);">→ Phase 06: Compare API endpoint</div>
+        <div style="font-size:11px;color:rgba(226,232,240,0.7);">→ Phase 08: Sensor List + Compare UI (React)</div>
+        <div style="font-size:11px;color:rgba(226,232,240,0.7);">→ Phase 09: Flutter Compare + Settings screen</div>
+      </div>
+    </div>
+    <div style="background:var(--amber-dim);border:1px solid rgba(245,158,11,0.25);border-radius:10px;padding:18px;">
+      <div style="font-size:10px;letter-spacing:1px;color:var(--amber);font-family:'DM Mono',monospace;margin-bottom:10px;">UPDATE EXISTING PROMPTS</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="font-size:11px;color:rgba(226,232,240,0.7);">→ Phase 01: Add sensor_health table, multi-machine docker</div>
+        <div style="font-size:11px;color:rgba(226,232,240,0.7);">→ Phase 05: Redis buffer 60s → 10min</div>
+        <div style="font-size:11px;color:rgba(226,232,240,0.7);">→ Phase 06: Batch flush 5s → 15s</div>
+        <div style="font-size:11px;color:rgba(226,232,240,0.7);">→ Phase 07: Alert engine to handle 6 types</div>
+        <div style="font-size:11px;color:rgba(226,232,240,0.7);">→ Phase 08: Heatmap fault states</div>
+        <div style="font-size:11px;color:rgba(226,232,240,0.7);">→ Phase 10: OPC + failure demo scenarios</div>
+      </div>
+    </div>
+    <div style="background:rgba(71,85,105,0.1);border:1px solid rgba(71,85,105,0.2);border-radius:10px;padding:18px;">
+      <div style="font-size:10px;letter-spacing:1px;color:var(--text-dim);font-family:'DM Mono',monospace;margin-bottom:10px;">REUSE AS-IS</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="font-size:11px;color:rgba(226,232,240,0.4);">→ Phase 02: Simulator prompt unchanged</div>
+        <div style="font-size:11px;color:rgba(226,232,240,0.4);">→ Core chart components (heatmap, gauges, line charts)</div>
+        <div style="font-size:11px;color:rgba(226,232,240,0.4);">→ TimescaleDB schema (minor additions only)</div>
+        <div style="font-size:11px;color:rgba(226,232,240,0.4);">→ Alert deduplication logic</div>
+        <div style="font-size:11px;color:rgba(226,232,240,0.4);">→ MinIO Parquet storage</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:16px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px;font-size:12px;line-height:1.9;color:rgba(226,232,240,0.6);">
+    <strong style="color:var(--cyan);">Recommended order for prompts:</strong> Foundation → Simulator → OPC-UA Server → OPC-UA Client → Sensor Failure Watchdog → WebSocket Streaming → Persistence + Compare API → Alert Engine → React Dashboard (3 parts) → Flutter App → Demo Polish. The OPC-UA layer must be complete before WebSocket streaming since the data source has changed.
+  </div>
+</div>
+
+</div><!-- content -->
+</main>
+
+<script>
+// Active nav on scroll
+const sections = document.querySelectorAll('.section[id]');
+const navItems = document.querySelectorAll('.nav-item');
+
+window.addEventListener('scroll',()=>{
+  let current='';
+  sections.forEach(s=>{
+    if(window.scrollY >= s.offsetTop - 100) current=s.id;
+  });
+  navItems.forEach(n=>{
+    n.classList.toggle('active', n.getAttribute('href')==='#'+current);
+  });
+});
+</script>
+</body>
+</html>

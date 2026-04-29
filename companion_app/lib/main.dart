@@ -5,9 +5,11 @@ import 'screens/overview_screen.dart';
 import 'services/notification_service.dart';
 import 'services/websocket_service.dart';
 import 'providers/providers.dart';
+import 'config.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  Config.validate();
   await notificationService.init();
 
   // Begin WebSocket connections

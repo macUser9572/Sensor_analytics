@@ -1,30 +1,32 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
+import { apiUrl, wsUrl } from '../src/config';
+
+const sortByNewest = (alerts) =>
+    [...alerts].sort((a, b) => new Date(b.fired_at || 0) - new Date(a.fired_at || 0));
 
 export function useAlertStream() {
-    const [alerts, setAlerts] = useState([]);
+    const [activeAlerts, setActiveAlerts] = useState([]);
     const wsRef = useRef(null);
     const reconnectTimeoutRef = useRef(null);
     const retryCountRef = useRef(0);
-    const isComponentMounted = useRef(true);
+    const isMountedRef = useRef(true);
+    const pingIntervalRef = useRef(null);
 
-    const fetchActiveAlerts = async () => {
-        try {
-            const res = await axios.get("http://localhost:8000/api/v1/alerts/active");
-            setAlerts(res.data);
-        } catch (err) {
-            console.error("Failed to fetch initial active alerts", err);
-        }
+    const scheduleReconnect = () => {
+        const delay = Math.min(30000, Math.pow(2, retryCountRef.current) * 1000);
+        retryCountRef.current += 1;
+        reconnectTimeoutRef.current = setTimeout(connect, delay);
     };
 
     const connect = () => {
-        if (!isComponentMounted.current) return;
-        
+        if (!isMountedRef.current) return;
+
         if (wsRef.current) {
             wsRef.current.close();
         }
 
-        const ws = new WebSocket("ws://localhost:8000/ws/alerts");
+        const ws = new WebSocket(wsUrl('/ws/alerts'));
         wsRef.current = ws;
 
         ws.onopen = () => {
@@ -33,57 +35,54 @@ export function useAlertStream() {
                 clearTimeout(reconnectTimeoutRef.current);
                 reconnectTimeoutRef.current = null;
             }
-            fetchActiveAlerts();
         };
 
         ws.onmessage = (event) => {
+            if (event.data === 'pong' || event.data === 'ping') return;
+
             try {
-                if (event.data === "pong") return;
-                
-                const data = JSON.parse(event.data);
-                
-                if (data.event === "alert_fired" && data.alert) {
-                    setAlerts(prev => {
-                        const next = [...prev];
-                        const idx = next.findIndex(a => a.id === data.alert.id);
-                        if (idx >= 0) {
-                            next[idx] = data.alert;
-                        } else {
-                            next.unshift(data.alert);
-                        }
-                        return next;
+                const message = JSON.parse(event.data);
+                if (message.type === 'active_alerts' && Array.isArray(message.data)) {
+                    setActiveAlerts(sortByNewest(message.data));
+                    return;
+                }
+
+                if (message.event === 'alert_fired' && message.alert) {
+                    setActiveAlerts((prev) => {
+                        const withoutDuplicate = prev.filter((alert) => alert.id !== message.alert.id);
+                        return sortByNewest([message.alert, ...withoutDuplicate]);
                     });
-                } else if (data.event === "alert_resolved" && data.alert) {
-                    const alertId = data.alert.id;
-                    setAlerts(prev => prev.filter(a => a.id !== alertId));
+                } else if (message.event === 'alert_resolved' && message.alert) {
+                    setActiveAlerts((prev) => prev.filter((alert) => alert.id !== message.alert.id));
                 }
             } catch (err) {
-                console.error("Failed to parse alert message", err);
+                console.error('Failed to parse alert stream message', err);
             }
         };
 
         ws.onclose = () => {
-            if (!isComponentMounted.current) return;
-            
-            const maxBackoff = 30000;
-            let delay = Math.pow(2, retryCountRef.current) * 1000;
-            if (delay > maxBackoff) delay = maxBackoff;
-            
-            retryCountRef.current += 1;
-            reconnectTimeoutRef.current = setTimeout(connect, delay);
+            if (!isMountedRef.current) return;
+            scheduleReconnect();
+        };
+
+        ws.onerror = () => {
+            ws.close();
         };
     };
 
     useEffect(() => {
-        isComponentMounted.current = true;
+        isMountedRef.current = true;
         connect();
-        
-        // Polling fallback to clear any discrepancies (like the mobile app)
-        const pollInterval = setInterval(fetchActiveAlerts, 10000);
+
+        pingIntervalRef.current = setInterval(() => {
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send('ping');
+            }
+        }, 30000);
 
         return () => {
-            isComponentMounted.current = false;
-            clearInterval(pollInterval);
+            isMountedRef.current = false;
+            if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
             if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
             if (wsRef.current) wsRef.current.close();
         };
@@ -91,14 +90,14 @@ export function useAlertStream() {
 
     const acknowledgeAlert = async (alertId) => {
         try {
-            const res = await axios.post(`http://localhost:8000/api/v1/alerts/${alertId}/acknowledge`);
+            const res = await axios.post(apiUrl(`/api/v1/alerts/${alertId}/acknowledge`));
             if (res.data.status === 'success') {
-                setAlerts(prev => prev.filter(a => a.id !== alertId));
+                setActiveAlerts((prev) => prev.filter((alert) => alert.id !== alertId));
             }
         } catch (err) {
-            console.error("Failed to acknowledge alert", err);
+            console.error('Failed to acknowledge alert', err);
         }
     };
 
-    return { alerts, acknowledgeAlert };
+    return { activeAlerts, alerts: activeAlerts, acknowledgeAlert };
 }

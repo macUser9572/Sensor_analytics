@@ -5,8 +5,8 @@ Run this checklist 2 hours before the demo, and again 30 minutes before the demo
 ## 1. Network & Air-Gap Resilience (No Internet Required)
 - [ ] **Plotly JS Local Bundle:** Verify that `frontend/package.json` contains `plotly.js` or `react-plotly.js` and there are NO `<script src="https://cdn.plot.ly/...">` tags in `public/index.html`. 
   *How to verify:* Disconnect from all WiFi, clear browser cache, load the dashboard. If graphs render, you are successfully bundled locally.
-- [ ] **WebSocket Offline Connection:** While WiFi is still OFF, verify the dashboard connects to `ws://localhost:8000` and live data flows.
-- [ ] **Flutter Local IP Mapping:** Verify the laptop and phone/tablet are on the SAME local network (e.g., ad-hoc network or phone hotspot). *Do NOT use `localhost` in the Flutter app—use the laptop's assigned IP (e.g., `192.168.x.x`).*
+- [ ] **WebSocket Offline Connection:** While internet is still OFF, verify the dashboard connects to `REACT_WS_URL` and live data flows.
+- [ ] **Flutter LAN IP Mapping:** Verify the laptop and phone/tablet are on the SAME local network and the Flutter build uses `FLUTTER_API_BASE_URL` / `FLUTTER_WS_URL` from `.env`.
 
 ## 2. Infrastructure & Environment
 - [ ] **Docker Memory:** Open Docker Desktop settings. Ensure at least **4GB RAM** is allocated to handle Redis, TimescaleDB, and the Python FastAPI backend simultaneously.

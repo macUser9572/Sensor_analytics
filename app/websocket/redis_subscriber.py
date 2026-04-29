@@ -17,7 +17,7 @@ class RedisSubscriber:
         if self.is_running:
             return
         self.is_running = True
-        self.redis = aioredis.from_url(settings.redis_url, decode_responses=True)
+        self.redis = aioredis.from_url(settings.redis_url(), decode_responses=True)
         self.pubsub = self.redis.pubsub()
         self._task = asyncio.create_task(self._listen_loop())
 

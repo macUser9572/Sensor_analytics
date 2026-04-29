@@ -36,7 +36,7 @@ async def get_sensor_history(sensor_id: str, minutes: int = 60) -> List[Dict[str
         return []
 
 async def get_all_current_readings() -> List[Dict[str, Any]]:
-    redis = aioredis.from_url(settings.redis_url, decode_responses=True)
+    redis = aioredis.from_url(settings.redis_url(), decode_responses=True)
     try:
         subsystems = ["turbine", "boiler", "generator", "cooling", "transformer", "auxiliary"]
         pipeline = redis.pipeline()

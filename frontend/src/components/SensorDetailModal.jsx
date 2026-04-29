@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Plot from 'react-plotly.js';
 import axios from 'axios';
+import { apiUrl } from '../config';
 
 const toISTString = (dateInput) => {
   const d = new Date(dateInput);
@@ -26,7 +27,7 @@ export default function SensorDetailModal({ sensor, source, onClose }) {
     let active = true;
     const fetchHistory = async () => {
       try {
-        const res = await axios.get(`http://localhost:8000/data/sensors/${sensor.id}/history?minutes=60`);
+        const res = await axios.get(apiUrl(`/data/sensors/${sensor.id}/history?minutes=60`));
         if (!active) return;
         
         const data = res.data;

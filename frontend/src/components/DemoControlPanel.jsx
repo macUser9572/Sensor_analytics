@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { apiUrl } from '../config';
 
 export default function DemoControlPanel() {
   const [activeFault, setActiveFault] = useState(null);
@@ -12,7 +13,7 @@ export default function DemoControlPanel() {
 
   const triggerFault = async (sensorId) => {
     try {
-      await axios.post(`http://localhost:8000/simulator/fault/${sensorId}`, { target_multiplier: 1.2 });
+      await axios.post(apiUrl(`/simulator/fault/${sensorId}`), { target_multiplier: 1.2 });
       setActiveFault(sensorId);
     } catch (err) {
       console.error('Failed to trigger fault', err);
@@ -22,7 +23,7 @@ export default function DemoControlPanel() {
   const resolveFault = async () => {
     if (!activeFault) return;
     try {
-      await axios.delete(`http://localhost:8000/simulator/fault/${activeFault}`);
+      await axios.delete(apiUrl(`/simulator/fault/${activeFault}`));
       setActiveFault(null);
     } catch (err) {
       console.error('Failed to resolve fault', err);

@@ -11,8 +11,18 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
+COPY ./config.py ./config.py
+COPY ./database.py ./database.py
+COPY ./main.py ./main.py
+COPY ./routers ./routers
+COPY ./simulator ./simulator
+COPY ./opcua ./opcua
+COPY ./failure ./failure
+COPY ./websocket ./websocket
+COPY ./persistence ./persistence
+COPY ./alerts ./alerts
+COPY ./sql ./sql
 COPY ./app ./app
+COPY ./env_check.py ./env_check.py
 
-EXPOSE 8000
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["sh", "-c", "uvicorn main:app --host ${API_HOST} --port ${API_PORT}"]
