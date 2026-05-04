@@ -14,6 +14,9 @@ from simulator.models import SensorDefinition
 logger = logging.getLogger(__name__)
 
 
+HEALTH_DB_WRITE_INTERVAL = 10.0  # seconds between routine "live" DB writes per sensor
+
+
 class SensorWatchdog:
     def __init__(
         self,
@@ -31,16 +34,23 @@ class SensorWatchdog:
         self.timeout = settings.watchdog_timeout_seconds
         self._running = False
         self._task: asyncio.Task | None = None
+        self._last_health_write: dict[str, float] = {}
 
     async def heartbeat(self, sensor_id: str) -> None:
         now = time.time()
         self.last_seen[sensor_id] = now
 
-        if sensor_id in self.fault_sensors:
+        recovering = sensor_id in self.fault_sensors
+        if recovering:
             self.fault_sensors.remove(sensor_id)
             await self._fire_recovery_alert(sensor_id)
 
-        await self._update_health_db(sensor_id, "live")
+        # Only write to DB on recovery or after the debounce interval to avoid
+        # exhausting the connection pool when hundreds of sensors fire rapidly.
+        last_write = self._last_health_write.get(sensor_id, 0.0)
+        if recovering or (now - last_write) >= HEALTH_DB_WRITE_INTERVAL:
+            self._last_health_write[sensor_id] = now
+            await self._update_health_db(sensor_id, "live")
 
     async def mark_fault(self, sensor_id: str, quality_code: str | None = None) -> None:
         self.fault_sensors.add(sensor_id)
@@ -49,7 +59,10 @@ class SensorWatchdog:
     async def mark_uncertain(self, sensor_id: str, quality_code: str | None = None) -> None:
         now = time.time()
         self.last_seen[sensor_id] = now
-        await self._update_health_db(sensor_id, "uncertain", quality_code=quality_code)
+        last_write = self._last_health_write.get(sensor_id, 0.0)
+        if (now - last_write) >= HEALTH_DB_WRITE_INTERVAL:
+            self._last_health_write[sensor_id] = now
+            await self._update_health_db(sensor_id, "uncertain", quality_code=quality_code)
 
     async def check_loop(self) -> None:
         self._running = True
