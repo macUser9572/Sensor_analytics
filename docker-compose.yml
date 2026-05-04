@@ -50,7 +50,7 @@ services:
       start_period: 10s
 
   timescaledb:
-    image: timescale/timescaledb:latest-pg15
+    image: timescale/timescaledb:latest-pg17
     container_name: bhel_timescaledb
     env_file: .env
     environment:

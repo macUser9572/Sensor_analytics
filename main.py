@@ -53,7 +53,6 @@ async def lifespan(app: FastAPI):
         socket_connect_timeout=5,
         socket_timeout=5,
         retry_on_timeout=True,
-        health_check_interval=30,
     )
     sensor_registry = {sensor.id: sensor for sensor in app.state.simulator.registry}
     app.state.alert_engine = AlertEngine(

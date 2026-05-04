@@ -6,8 +6,8 @@ services:
     command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 3000"
     env_file: .env
     environment:
-      REACT_API_BASE_URL: ${REACT_API_BASE_URL}
-      REACT_WS_URL: ${REACT_WS_URL}
+      VITE_API_URL: ${REACT_API_BASE_URL}
+      VITE_WS_URL: ${REACT_WS_URL}
     ports:
       - "0.0.0.0:3000:3000"
     restart: unless-stopped

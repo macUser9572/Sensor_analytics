@@ -31,8 +31,8 @@ class OPCUAClient:
                     self.sensor_nodes = sensor_nodes
 
                     params = ua.CreateSubscriptionParameters()
-                    params.RequestedPublishingInterval = 1000
-                    params.RequestedLifetimeCount = max(settings.OPC_KEEPALIVE_COUNT * 10, 30)
+                    params.RequestedPublishingInterval = settings.opc_publish_interval_ms
+                    params.RequestedLifetimeCount = max(settings.OPC_KEEPALIVE_COUNT * 10, 300)
                     params.RequestedMaxKeepAliveCount = settings.OPC_KEEPALIVE_COUNT
                     params.MaxNotificationsPerPublish = 10000
                     params.PublishingEnabled = True

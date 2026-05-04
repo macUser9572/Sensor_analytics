@@ -57,7 +57,6 @@ class RedisSubscriber:
                     socket_connect_timeout=5,
                     socket_timeout=10,
                     retry_on_timeout=True,
-                    health_check_interval=30,
                 )
                 pubsub = redis_client.pubsub()
                 await pubsub.subscribe(*CHANNELS)
