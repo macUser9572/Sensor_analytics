@@ -4,6 +4,7 @@ import logging
 from uuid import uuid4
 
 import redis.asyncio as redis
+from redis.asyncio import BlockingConnectionPool
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -46,21 +47,26 @@ async def lifespan(app: FastAPI):
     await app.state.opc_server.start()
     await asyncio.sleep(2)
 
-    app.state.redis_client = redis.from_url(
+    _redis_pool = BlockingConnectionPool.from_url(
         settings.redis_url(),
         decode_responses=True,
         socket_keepalive=True,
         socket_connect_timeout=5,
         socket_timeout=5,
-        retry_on_timeout=True,
+        max_connections=50,
+        timeout=20,
     )
+    app.state.redis_client = redis.Redis(connection_pool=_redis_pool)
     sensor_registry = {sensor.id: sensor for sensor in app.state.simulator.registry}
     app.state.alert_engine = AlertEngine(
         app.state.redis_client,
         AsyncSessionLocal,
         sensor_registry,
     )
-    await app.state.alert_engine.load_active_from_db()
+    try:
+        await app.state.alert_engine.load_active_from_db()
+    except Exception:
+        logger.exception("Failed to load active alerts from DB; continuing with empty alert state")
     app.state.watchdog = SensorWatchdog(
         app.state.redis_client,
         AsyncSessionLocal,
