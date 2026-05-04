@@ -1,13 +1,13 @@
 services:
   timescaledb:
-    image: timescale/timescaledb:latest-pg15
+    image: timescale/timescaledb:latest-pg17
     container_name: bhel_timescaledb
     env_file: .env
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-    command: ["postgres", "-c", "max_connections=500"]
+    command: [ "postgres", "-c", "max_connections=500" ]
     ports:
       - "0.0.0.0:${DB_PORT}:5432"
     restart: unless-stopped
@@ -17,7 +17,7 @@ services:
     networks:
       - bhel_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 0.0.0.0 -p 5432 -U \"$${DB_USER}\" -d \"$${DB_NAME}\""]
+      test: [ "CMD-SHELL", "pg_isready -h 0.0.0.0 -p 5432 -U \"$${DB_USER}\" -d \"$${DB_NAME}\"" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -40,7 +40,7 @@ services:
     networks:
       - bhel_net
     healthcheck:
-      test: ["CMD-SHELL", "mc alias set bhel http://0.0.0.0:9000 \"$${MINIO_ACCESS_KEY}\" \"$${MINIO_SECRET_KEY}\" >/dev/null 2>&1 && mc ready bhel"]
+      test: [ "CMD-SHELL", "mc alias set bhel http://0.0.0.0:9000 \"$${MINIO_ACCESS_KEY}\" \"$${MINIO_SECRET_KEY}\" >/dev/null 2>&1 && mc ready bhel" ]
       interval: 10s
       timeout: 5s
       retries: 5
