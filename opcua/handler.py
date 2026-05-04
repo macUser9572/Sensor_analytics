@@ -32,11 +32,18 @@ class DataChangeHandler:
         self.db_session_factory = db_session_factory
         self.batch_writer = batch_writer
         self.alert_engine = alert_engine
+        # Caches node.nodeid (str) → sensor_id to avoid a live OPC-UA round-trip
+        # on every data change notification.
+        self._node_name_cache: dict[str, str] = {}
 
     async def datachange_notification(self, node, val, data) -> None:
         try:
             status_code = data.monitored_item.Value.StatusCode
-            node_name = (await node.read_browse_name()).Name
+            node_id_str = str(node.nodeid)
+            node_name = self._node_name_cache.get(node_id_str)
+            if node_name is None:
+                node_name = (await node.read_browse_name()).Name
+                self._node_name_cache[node_id_str] = node_name
             meta = self.registry.get(node_name)
             if not meta:
                 return
