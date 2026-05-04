@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -11,6 +12,11 @@ from simulator.models import SensorReading
 logger = logging.getLogger(__name__)
 TERMINAL_ALERT_TYPES = {"sensor_recovered"}
 
+# Max concurrent DB connections used by the alert engine at any one time.
+# Prevents pool exhaustion when many alerts fire/resolve in the same OPC-UA
+# publish cycle.
+_ALERT_DB_CONCURRENCY = 5
+
 
 class AlertEngine:
     def __init__(self, redis_client, db_session_factory, sensor_registry):
@@ -18,6 +24,7 @@ class AlertEngine:
         self.redis = redis_client
         self.db_session_factory = db_session_factory
         self.registry = sensor_registry
+        self._db_sem = asyncio.Semaphore(_ALERT_DB_CONCURRENCY)
 
     async def process_reading(self, reading: SensorReading) -> None:
         sensor_id = reading.sensor_id
@@ -140,7 +147,7 @@ class AlertEngine:
         }
         self.active_alerts[reading.sensor_id] = alert
         await self.redis.publish("alerts", json.dumps({"event": "alert_fired", "alert": alert}))
-        await self._persist_alert(alert)
+        asyncio.create_task(self._bg_persist_alert(alert))
 
     async def _resolve_alert(self, sensor_id: str) -> None:
         alert = self.active_alerts.pop(sensor_id, None)
@@ -149,7 +156,21 @@ class AlertEngine:
         alert["resolved_at"] = datetime.now(timezone.utc).isoformat()
         alert["acknowledged"] = True
         await self.redis.publish("alerts", json.dumps({"event": "alert_resolved", "alert": alert}))
-        await self._mark_resolved_in_db(alert["id"])
+        asyncio.create_task(self._bg_mark_resolved(alert["id"]))
+
+    async def _bg_persist_alert(self, alert: dict) -> None:
+        async with self._db_sem:
+            try:
+                await self._persist_alert(alert)
+            except Exception:
+                logger.exception("Failed to persist alert %s to DB", alert.get("id"))
+
+    async def _bg_mark_resolved(self, alert_id: str) -> None:
+        async with self._db_sem:
+            try:
+                await self._mark_resolved_in_db(alert_id)
+            except Exception:
+                logger.exception("Failed to mark alert %s resolved in DB", alert_id)
 
     async def _persist_alert(self, alert: dict) -> None:
         async with self.db_session_factory() as session:

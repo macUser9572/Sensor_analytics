@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 HEALTH_DB_WRITE_INTERVAL = 10.0  # seconds between routine "live" DB writes per sensor
 
 
+_WATCHDOG_DB_CONCURRENCY = 5
+
+
 class SensorWatchdog:
     def __init__(
         self,
@@ -35,6 +38,7 @@ class SensorWatchdog:
         self._running = False
         self._task: asyncio.Task | None = None
         self._last_health_write: dict[str, float] = {}
+        self._db_sem = asyncio.Semaphore(_WATCHDOG_DB_CONCURRENCY)
 
     async def heartbeat(self, sensor_id: str) -> None:
         now = time.time()
@@ -129,37 +133,54 @@ class SensorWatchdog:
             "acknowledged": False,
         }
         payload = {"event": "alert_fired", "alert": alert}
+        # Redis publish and in-memory state update happen immediately.
+        # DB write is backgrounded to avoid blocking the OPC-UA hot path.
         await self.redis.publish("alerts", json.dumps(payload))
-
-        async with self.db_session_factory() as session:
-            await session.execute(
-                text(
-                    """
-                    INSERT INTO alerts (
-                        id, sensor_id, value, threshold, severity, alert_type,
-                        message, fired_at, acknowledged
-                    )
-                    VALUES (
-                        CAST(:id AS UUID), :sensor_id, :value, :threshold, :severity,
-                        :alert_type, :message, :fired_at, FALSE
-                    )
-                    """
-                ),
-                {
-                    "id": alert["id"],
-                    "sensor_id": sensor_id,
-                    "value": value,
-                    "threshold": threshold,
-                    "severity": severity,
-                    "alert_type": alert_type,
-                    "message": message,
-                    "fired_at": datetime.fromisoformat(alert["fired_at"]),
-                },
-            )
-            await session.commit()
+        asyncio.create_task(self._bg_insert_alert(alert, sensor_id, value, threshold, severity, alert_type, message))
 
         if self.alert_engine:
             await self.alert_engine.register_external_alert(alert, terminal=terminal)
+
+    async def _bg_insert_alert(
+        self,
+        alert: dict,
+        sensor_id: str,
+        value: float | None,
+        threshold: float | None,
+        severity: str,
+        alert_type: str,
+        message: str,
+    ) -> None:
+        async with self._db_sem:
+            try:
+                async with self.db_session_factory() as session:
+                    await session.execute(
+                        text(
+                            """
+                            INSERT INTO alerts (
+                                id, sensor_id, value, threshold, severity, alert_type,
+                                message, fired_at, acknowledged
+                            )
+                            VALUES (
+                                CAST(:id AS UUID), :sensor_id, :value, :threshold, :severity,
+                                :alert_type, :message, :fired_at, FALSE
+                            )
+                            """
+                        ),
+                        {
+                            "id": alert["id"],
+                            "sensor_id": sensor_id,
+                            "value": value,
+                            "threshold": threshold,
+                            "severity": severity,
+                            "alert_type": alert_type,
+                            "message": message,
+                            "fired_at": datetime.fromisoformat(alert["fired_at"]),
+                        },
+                    )
+                    await session.commit()
+            except Exception:
+                logger.exception("Failed to persist watchdog alert %s to DB", alert.get("id"))
 
     async def _update_health_db(
         self,
