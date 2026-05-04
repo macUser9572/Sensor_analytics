@@ -160,21 +160,20 @@ class DataChangeHandler:
                 logger.exception("Failed to process threshold alert")
 
         channel = f"subsystem:{meta.subsystem}"
-        await self.redis.publish(
-            channel,
-            json.dumps(
-                {
-                    "subsystem": meta.subsystem,
-                    "timestamp": reading["timestamp"],
-                    "readings": [reading],
-                }
-            ),
-        )
-
         key = f"sensor:{sensor_id}"
         score = datetime.now(timezone.utc).timestamp()
-        await self.redis.zadd(key, {json.dumps(reading): score})
-        await self.redis.zremrangebyscore(key, 0, score - 600)
+        payload = json.dumps(
+            {
+                "subsystem": meta.subsystem,
+                "timestamp": reading["timestamp"],
+                "readings": [reading],
+            }
+        )
+        async with self.redis.pipeline(transaction=False) as pipe:
+            pipe.publish(channel, payload)
+            pipe.zadd(key, {json.dumps(reading): score})
+            pipe.zremrangebyscore(key, 0, score - 600)
+            await pipe.execute()
 
     async def _publish_and_persist_alert(
         self,

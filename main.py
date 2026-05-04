@@ -46,7 +46,15 @@ async def lifespan(app: FastAPI):
     await app.state.opc_server.start()
     await asyncio.sleep(2)
 
-    app.state.redis_client = redis.from_url(settings.redis_url(), decode_responses=True)
+    app.state.redis_client = redis.from_url(
+        settings.redis_url(),
+        decode_responses=True,
+        socket_keepalive=True,
+        socket_connect_timeout=5,
+        socket_timeout=5,
+        retry_on_timeout=True,
+        health_check_interval=30,
+    )
     sensor_registry = {sensor.id: sensor for sensor in app.state.simulator.registry}
     app.state.alert_engine = AlertEngine(
         app.state.redis_client,

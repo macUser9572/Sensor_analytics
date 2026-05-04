@@ -50,7 +50,15 @@ class RedisSubscriber:
             redis_client = None
             pubsub = None
             try:
-                redis_client = redis.from_url(redis_url, decode_responses=False)
+                redis_client = redis.from_url(
+                    redis_url,
+                    decode_responses=False,
+                    socket_keepalive=True,
+                    socket_connect_timeout=5,
+                    socket_timeout=10,
+                    retry_on_timeout=True,
+                    health_check_interval=30,
+                )
                 pubsub = redis_client.pubsub()
                 await pubsub.subscribe(*CHANNELS)
                 self._subscribed = True
