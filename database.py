@@ -9,8 +9,8 @@ from simulator.registry import generate_sensor_registry
 
 
 SQL_INIT_PATH = Path(__file__).resolve().parent / "sql" / "init.sql"
-DB_POOL_MIN_SIZE = 2
-DB_POOL_MAX_SIZE = 10
+DB_POOL_MIN_SIZE = 20
+DB_POOL_MAX_SIZE = 50
 
 engine = create_async_engine(
     settings.db_url(),
