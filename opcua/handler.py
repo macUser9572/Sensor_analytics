@@ -122,17 +122,21 @@ class DataChangeHandler:
         val,
         quality: str,
     ) -> None:
-        pct = float(val) / meta.max_threshold if meta.max_threshold else 0.0
-        status = "critical" if pct >= 1.0 else "warning" if pct >= 0.8 else "normal"
+        value_f = float(val)
+        if value_f <= meta.min_threshold or value_f >= meta.max_threshold:
+            status = "critical"
+        else:
+            threshold_span = meta.max_threshold - meta.baseline_value
+            ratio = (value_f - meta.baseline_value) / threshold_span if threshold_span else 0.0
+            status = "warning" if ratio >= 0.8 else "normal"
         timestamp_dt = datetime.now(timezone.utc)
-        value = float(val)
         timestamp = timestamp_dt.isoformat()
 
         reading = {
             "id": sensor_id,
             "name": meta.name,
             "subsystem": meta.subsystem,
-            "value": round(value, 3),
+            "value": round(value_f, 3),
             "unit": meta.unit,
             "status": status,
             "quality": quality,
@@ -145,7 +149,7 @@ class DataChangeHandler:
             sensor_id=sensor_id,
             name=meta.name,
             subsystem=meta.subsystem,
-            value=value,
+            value=value_f,
             unit=meta.unit,
             status=status,
             timestamp=timestamp_dt,

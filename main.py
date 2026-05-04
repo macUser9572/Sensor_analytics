@@ -63,10 +63,16 @@ async def lifespan(app: FastAPI):
         AsyncSessionLocal,
         sensor_registry,
     )
-    try:
-        await app.state.alert_engine.load_active_from_db()
-    except Exception:
-        logger.exception("Failed to load active alerts from DB; continuing with empty alert state")
+    for _attempt in range(3):
+        try:
+            await app.state.alert_engine.load_active_from_db()
+            break
+        except Exception:
+            if _attempt < 2:
+                logger.warning("load_active_from_db attempt %d failed; retrying in 3s...", _attempt + 1)
+                await asyncio.sleep(3)
+            else:
+                logger.exception("Failed to load active alerts from DB after 3 attempts; continuing with empty alert state")
     app.state.watchdog = SensorWatchdog(
         app.state.redis_client,
         AsyncSessionLocal,

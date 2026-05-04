@@ -53,8 +53,13 @@ class SensorWatchdog:
             await self._update_health_db(sensor_id, "live")
 
     async def mark_fault(self, sensor_id: str, quality_code: str | None = None) -> None:
+        now = time.time()
+        already_faulted = sensor_id in self.fault_sensors
         self.fault_sensors.add(sensor_id)
-        await self._update_health_db(sensor_id, "fault", quality_code=quality_code)
+        last_write = self._last_health_write.get(sensor_id, 0.0)
+        if not already_faulted or (now - last_write) >= HEALTH_DB_WRITE_INTERVAL:
+            self._last_health_write[sensor_id] = now
+            await self._update_health_db(sensor_id, "fault", quality_code=quality_code)
 
     async def mark_uncertain(self, sensor_id: str, quality_code: str | None = None) -> None:
         now = time.time()

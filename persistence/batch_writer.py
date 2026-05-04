@@ -34,16 +34,20 @@ class BatchWriter:
 
         try:
             async with self.db_session_factory() as session:
-                connection = await session.connection()
-                raw_connection = await connection.get_raw_connection()
-                await raw_connection.driver_connection.executemany(
-                    """
-                    INSERT INTO readings (time, sensor_id, value)
-                    VALUES ($1, $2, $3)
-                    ON CONFLICT DO NOTHING
-                    """,
-                    batch,
-                )
+                sa_connection = await session.connection()
+                raw_connection = await sa_connection.get_raw_connection()
+                try:
+                    await raw_connection.driver_connection.executemany(
+                        """
+                        INSERT INTO readings (time, sensor_id, value)
+                        VALUES ($1, $2, $3)
+                        ON CONFLICT DO NOTHING
+                        """,
+                        batch,
+                    )
+                except Exception:
+                    sa_connection.invalidate()
+                    raise
                 await session.commit()
             logger.info("BatchWriter: flushed %s readings to TimescaleDB", len(batch))
         except Exception as exc:
