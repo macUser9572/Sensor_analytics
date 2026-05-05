@@ -82,7 +82,7 @@ open_terminal \
 echo ""
 echo "✅ All machines started. Log terminals are opening."
 echo ""
-echo "   M1 OPC-UA API  → http://localhost:8001/opcua/nodes"
+echo "   M1 OPC-UA      → opc.tcp://localhost:4840"
 echo "   M2 FastAPI      → http://localhost:8000/health"
 echo "   M3 TimescaleDB  → localhost:5432"
 echo "   M3 MinIO        → http://localhost:9001  (console)"

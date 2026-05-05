@@ -21,6 +21,7 @@ async def main() -> None:
         loop.add_signal_handler(sig, request_stop)
 
     simulator = SimulatorService()
+    await simulator.start()
     opc_server = OPCUAServer(simulator)
     await opc_server.start()
     logger.info("Standalone OPC-UA bridge started")
@@ -29,6 +30,7 @@ async def main() -> None:
         await stop_event.wait()
     finally:
         await opc_server.stop()
+        await simulator.stop()
         logger.info("Standalone OPC-UA bridge stopped")
 
 

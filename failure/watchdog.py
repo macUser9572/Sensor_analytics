@@ -38,6 +38,7 @@ class SensorWatchdog:
         self._running = False
         self._task: asyncio.Task | None = None
         self._last_health_write: dict[str, float] = {}
+        self._pending_health: dict[str, tuple[str, str | None]] = {}
         self._db_sem = asyncio.Semaphore(_WATCHDOG_DB_CONCURRENCY)
 
     async def heartbeat(self, sensor_id: str) -> None:
@@ -49,12 +50,16 @@ class SensorWatchdog:
             self.fault_sensors.remove(sensor_id)
             await self._fire_recovery_alert(sensor_id)
 
-        # Only write to DB on recovery or after the debounce interval to avoid
-        # exhausting the connection pool when hundreds of sensors fire rapidly.
+        # Queue routine "live" writes for the watchdog loop. Awaiting a DB
+        # round-trip here blocks the OPC-UA data-change hot path, which is
+        # especially expensive when TimescaleDB is on another LAN machine.
         last_write = self._last_health_write.get(sensor_id, 0.0)
-        if recovering or (now - last_write) >= HEALTH_DB_WRITE_INTERVAL:
+        if recovering:
             self._last_health_write[sensor_id] = now
             await self._update_health_db(sensor_id, "live")
+        elif (now - last_write) >= HEALTH_DB_WRITE_INTERVAL:
+            self._last_health_write[sensor_id] = now
+            self._queue_health_update(sensor_id, "live")
 
     async def mark_fault(self, sensor_id: str, quality_code: str | None = None) -> None:
         now = time.time()
@@ -63,7 +68,7 @@ class SensorWatchdog:
         last_write = self._last_health_write.get(sensor_id, 0.0)
         if not already_faulted or (now - last_write) >= HEALTH_DB_WRITE_INTERVAL:
             self._last_health_write[sensor_id] = now
-            await self._update_health_db(sensor_id, "fault", quality_code=quality_code)
+            self._queue_health_update(sensor_id, "fault", quality_code=quality_code)
 
     async def mark_uncertain(self, sensor_id: str, quality_code: str | None = None) -> None:
         now = time.time()
@@ -71,12 +76,13 @@ class SensorWatchdog:
         last_write = self._last_health_write.get(sensor_id, 0.0)
         if (now - last_write) >= HEALTH_DB_WRITE_INTERVAL:
             self._last_health_write[sensor_id] = now
-            await self._update_health_db(sensor_id, "uncertain", quality_code=quality_code)
+            self._queue_health_update(sensor_id, "uncertain", quality_code=quality_code)
 
     async def check_loop(self) -> None:
         self._running = True
         while self._running:
             await asyncio.sleep(settings.watchdog_check_interval_seconds)
+            await self._flush_pending_health_updates()
             now = time.time()
             for sensor_id, last in list(self.last_seen.items()):
                 silence = now - last
@@ -182,12 +188,55 @@ class SensorWatchdog:
             except Exception:
                 logger.exception("Failed to persist watchdog alert %s to DB", alert.get("id"))
 
+    def _queue_health_update(
+        self,
+        sensor_id: str,
+        status: str,
+        quality_code: str | None = None,
+    ) -> None:
+        self._pending_health[sensor_id] = (status, quality_code)
+
+    async def _flush_pending_health_updates(self) -> None:
+        if not self._pending_health:
+            return
+
+        pending = self._pending_health
+        self._pending_health = {}
+        rows = [
+            {
+                "sensor_id": sensor_id,
+                "status": status,
+                "quality_code": quality_code,
+            }
+            for sensor_id, (status, quality_code) in pending.items()
+        ]
+
+        try:
+            await self._update_health_db_many(rows)
+        except Exception:
+            logger.exception("Failed to flush %s pending sensor_health updates", len(rows))
+            self._pending_health = {**pending, **self._pending_health}
+
     async def _update_health_db(
         self,
         sensor_id: str,
         status: str,
         quality_code: str | None = None,
     ) -> None:
+        await self._update_health_db_many(
+            [
+                {
+                    "sensor_id": sensor_id,
+                    "status": status,
+                    "quality_code": quality_code,
+                }
+            ]
+        )
+
+    async def _update_health_db_many(self, rows: list[dict[str, str | None]]) -> None:
+        if not rows:
+            return
+
         async with self._db_sem:
             async with self.db_session_factory() as session:
                 await session.execute(
@@ -213,11 +262,7 @@ class SensorWatchdog:
                             updated_at = NOW()
                         """
                     ),
-                    {
-                        "sensor_id": sensor_id,
-                        "status": status,
-                        "quality_code": quality_code,
-                    },
+                    rows,
                 )
                 await session.commit()
 
@@ -267,3 +312,4 @@ class SensorWatchdog:
             except asyncio.CancelledError:
                 pass
             self._task = None
+        await self._flush_pending_health_updates()
