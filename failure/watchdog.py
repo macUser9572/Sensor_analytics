@@ -188,37 +188,38 @@ class SensorWatchdog:
         status: str,
         quality_code: str | None = None,
     ) -> None:
-        async with self.db_session_factory() as session:
-            await session.execute(
-                text(
-                    """
-                    INSERT INTO sensor_health (
-                        sensor_id, last_seen, status, quality_code, updated_at
-                    )
-                    VALUES (
-                        :sensor_id,
-                        CASE WHEN :status IN ('live', 'uncertain') THEN NOW() ELSE NULL END,
-                        :status,
-                        :quality_code,
-                        NOW()
-                    )
-                    ON CONFLICT (sensor_id) DO UPDATE SET
-                        last_seen = CASE
-                            WHEN :status IN ('live', 'uncertain') THEN NOW()
-                            ELSE sensor_health.last_seen
-                        END,
-                        status = EXCLUDED.status,
-                        quality_code = EXCLUDED.quality_code,
-                        updated_at = NOW()
-                    """
-                ),
-                {
-                    "sensor_id": sensor_id,
-                    "status": status,
-                    "quality_code": quality_code,
-                },
-            )
-            await session.commit()
+        async with self._db_sem:
+            async with self.db_session_factory() as session:
+                await session.execute(
+                    text(
+                        """
+                        INSERT INTO sensor_health (
+                            sensor_id, last_seen, status, quality_code, updated_at
+                        )
+                        VALUES (
+                            :sensor_id,
+                            CASE WHEN :status IN ('live', 'uncertain') THEN NOW() ELSE NULL END,
+                            :status,
+                            :quality_code,
+                            NOW()
+                        )
+                        ON CONFLICT (sensor_id) DO UPDATE SET
+                            last_seen = CASE
+                                WHEN :status IN ('live', 'uncertain') THEN NOW()
+                                ELSE sensor_health.last_seen
+                            END,
+                            status = EXCLUDED.status,
+                            quality_code = EXCLUDED.quality_code,
+                            updated_at = NOW()
+                        """
+                    ),
+                    {
+                        "sensor_id": sensor_id,
+                        "status": status,
+                        "quality_code": quality_code,
+                    },
+                )
+                await session.commit()
 
     async def _initialise_last_seen_from_redis(self) -> None:
         async for key in self.redis.scan_iter(match="sensor:*"):
