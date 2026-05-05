@@ -17,11 +17,14 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
   int _minutes = 60;
   bool _isLoading = true;
   String? _error;
-  
-  // sensorId -> list of spots
+
+  // sensorId -> list of spots (x = ms since epoch as double)
   Map<String, List<FlSpot>> _chartData = {};
+  // last streamed value per sensor for dedup
+  final Map<String, double> _lastStreamedValues = {};
+  // current display value per sensor (updated by live stream)
   Map<String, double> _currentValues = {};
-  
+
   final List<Color> _palette = [
     Colors.blueAccent,
     Colors.pinkAccent,
@@ -43,6 +46,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
     setState(() {
       _isLoading = true;
       _error = null;
+      _lastStreamedValues.clear();
     });
 
     final selectedIds = ref.read(selectedSensorsProvider);
@@ -56,21 +60,24 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
 
     try {
       final data = await apiService.fetchSensorCompare(selectedIds, minutes: _minutes);
-      
+
       final Map<String, List<FlSpot>> newChartData = {};
       final Map<String, double> newCurrentValues = {};
-      
+
       data.forEach((sensorId, history) {
         final spots = <FlSpot>[];
         double lastVal = 0;
-        
-        // Use index as X axis for simplicity
-        for (int i = 0; i < history.length; i++) {
-          final val = (history[i]['value'] as num).toDouble();
-          spots.add(FlSpot(i.toDouble(), val));
+
+        for (final entry in history) {
+          final val = (entry['value'] as num).toDouble();
+          final rawTime = entry['time'] ?? entry['timestamp'];
+          final ts = rawTime != null
+              ? DateTime.parse(rawTime as String).millisecondsSinceEpoch.toDouble()
+              : DateTime.now().millisecondsSinceEpoch.toDouble();
+          spots.add(FlSpot(ts, val));
           lastVal = val;
         }
-        
+
         newChartData[sensorId] = spots;
         newCurrentValues[sensorId] = lastVal;
       });
@@ -101,6 +108,35 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
   Widget build(BuildContext context) {
     final selectedIds = ref.watch(selectedSensorsProvider);
     final sensorsMap = ref.watch(sensorsMapProvider).value ?? {};
+
+    // Stream live ticks into chart data
+    ref.listen<AsyncValue<Map<String, SensorReading>>>(sensorsMapProvider, (prev, next) {
+      if (!next.hasValue || _isLoading) return;
+      final map = next.value!;
+      final cutoffMs = DateTime.now().millisecondsSinceEpoch - _minutes * 60 * 1000;
+      bool changed = false;
+
+      for (final id in selectedIds) {
+        final reading = map[id];
+        if (reading == null) continue;
+        final val = reading.value;
+        if (val == _lastStreamedValues[id]) continue;
+        _lastStreamedValues[id] = val;
+
+        final ts = reading.timestamp.millisecondsSinceEpoch.toDouble();
+        final spots = _chartData[id] ?? [];
+        spots.add(FlSpot(ts, val));
+
+        // Trim points outside the time window
+        spots.removeWhere((s) => s.x < cutoffMs);
+
+        _chartData[id] = spots;
+        _currentValues[id] = val;
+        changed = true;
+      }
+
+      if (changed && mounted) setState(() {});
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -174,19 +210,18 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
     double maxX = double.minPositive;
 
     int colorIndex = 0;
-    
-    // Check if we need dual axis (different units)
+
     final Set<String> units = {};
     for (final id in selectedIds) {
-      if (sensorsMap.containsKey(id)) {
-        units.add(sensorsMap[id]!.unit);
-      }
+      if (sensorsMap.containsKey(id)) units.add(sensorsMap[id]!.unit);
     }
     final isDualAxis = units.length > 1;
 
     for (final id in selectedIds) {
       final spots = _chartData[id];
       if (spots == null || spots.isEmpty) continue;
+
+      final color = _palette[colorIndex % _palette.length];
 
       for (final spot in spots) {
         if (spot.y < globalMinY) globalMinY = spot.y;
@@ -198,11 +233,19 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
       lineBars.add(
         LineChartBarData(
           spots: spots,
-          isCurved: true,
-          color: _palette[colorIndex % _palette.length],
-          barWidth: 2,
+          isCurved: false,
+          color: color,
+          barWidth: 1.5,
           isStrokeCapRound: true,
-          dotData: FlDotData(show: false),
+          dotData: FlDotData(
+            show: true,
+            getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+              radius: 2.0,
+              color: barData.color ?? Colors.white,
+              strokeWidth: 0,
+              strokeColor: Colors.transparent,
+            ),
+          ),
         ),
       );
       colorIndex++;
@@ -224,20 +267,39 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
           ),
         ),
         titlesData: FlTitlesData(
-          bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 28,
+              interval: (maxX - minX) / 4,
+              getTitlesWidget: (val, meta) {
+                final dt = DateTime.fromMillisecondsSinceEpoch(val.toInt());
+                return Text(
+                  '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}',
+                  style: const TextStyle(fontSize: 9, color: Colors.grey),
+                );
+              },
+            ),
+          ),
           topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 40,
-              getTitlesWidget: (val, meta) => Text(val.toStringAsFixed(0), style: const TextStyle(fontSize: 10, color: Colors.grey)),
+              getTitlesWidget: (val, meta) => Text(
+                val.toStringAsFixed(0),
+                style: const TextStyle(fontSize: 10, color: Colors.grey),
+              ),
             ),
           ),
           rightTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: isDualAxis,
               reservedSize: 40,
-              getTitlesWidget: (val, meta) => Text(val.toStringAsFixed(0), style: const TextStyle(fontSize: 10, color: Colors.grey)),
+              getTitlesWidget: (val, meta) => Text(
+                val.toStringAsFixed(0),
+                style: const TextStyle(fontSize: 10, color: Colors.grey),
+              ),
             ),
           ),
         ),

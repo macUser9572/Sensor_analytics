@@ -2,7 +2,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
 import '../services/websocket_service.dart';
+import '../config/app_config.dart';
+export '../services/websocket_service.dart' show WsConnectionState;
 import 'dart:async';
+
+// Tracks WebSocket live connection state
+final wsConnectionProvider = StreamProvider<WsConnectionState>((ref) {
+  return webSocketService.connectionStateStream;
+});
 
 // Provides the stream of SubsystemStatus real-time data
 final subsystemsProvider = StreamProvider<Map<String, SubsystemStatus>>((ref) {
@@ -15,11 +22,11 @@ final alertsStreamProvider = StreamProvider<AlertEvent>((ref) {
 });
 
 // A provider that maintains the current list of active alerts by blending API and WS data
-final activeAlertsProvider = StateNotifierProvider<ActiveAlertsNotifier, AsyncValue<List<Alert>>>((ref) {
+final activeAlertsProvider =
+    StateNotifierProvider<ActiveAlertsNotifier, AsyncValue<List<Alert>>>((ref) {
   final notifier = ActiveAlertsNotifier(ref);
   notifier.fetchInitialAlerts();
 
-  // Listen to alert events arriving via WS (both fired and resolved)
   ref.listen<AsyncValue<AlertEvent>>(alertsStreamProvider, (previous, next) {
     if (next.hasValue && next.value != null) {
       final event = next.value!;
@@ -39,7 +46,6 @@ class ActiveAlertsNotifier extends StateNotifier<AsyncValue<List<Alert>>> {
   Timer? _refreshTimer;
 
   ActiveAlertsNotifier(this.ref) : super(const AsyncLoading()) {
-    // Poll server every 10 seconds so recovered faults clear themselves automatically
     _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       _silentRefresh();
     });
@@ -52,6 +58,10 @@ class ActiveAlertsNotifier extends StateNotifier<AsyncValue<List<Alert>>> {
   }
 
   Future<void> fetchInitialAlerts() async {
+    if (AppConfig.isUnconfigured) {
+      state = const AsyncData([]);
+      return;
+    }
     try {
       state = const AsyncLoading();
       final alerts = await apiService.fetchActiveAlerts();
@@ -61,13 +71,13 @@ class ActiveAlertsNotifier extends StateNotifier<AsyncValue<List<Alert>>> {
     }
   }
 
-  /// Silent refresh — doesn't show loading spinner, just replaces data
   Future<void> _silentRefresh() async {
+    if (AppConfig.isUnconfigured) return;
     try {
       final alerts = await apiService.fetchActiveAlerts();
       state = AsyncData(alerts);
     } catch (_) {
-      // Keep existing state on network hiccup — don't crash UI
+      // Keep existing state on network hiccup
     }
   }
 
@@ -75,21 +85,19 @@ class ActiveAlertsNotifier extends StateNotifier<AsyncValue<List<Alert>>> {
     if (state.hasValue && state.value != null) {
       final currentAlerts = List<Alert>.from(state.value!);
       final index = currentAlerts.indexWhere((a) => a.id == newAlert.id);
-
       if (index >= 0) {
         currentAlerts[index] = newAlert;
       } else {
         currentAlerts.insert(0, newAlert);
       }
-
       state = AsyncData(currentAlerts);
     }
   }
 
-  /// Remove all alerts for a sensor when it returns to normal
   void removeAlertBySensorId(String sensorId) {
     if (state.hasValue && state.value != null) {
-      final updated = state.value!.where((a) => a.sensorId != sensorId).toList();
+      final updated =
+          state.value!.where((a) => a.sensorId != sensorId).toList();
       state = AsyncData(updated);
     }
   }
@@ -97,7 +105,8 @@ class ActiveAlertsNotifier extends StateNotifier<AsyncValue<List<Alert>>> {
   Future<bool> acknowledge(String alertId) async {
     final success = await apiService.acknowledgeAlert(alertId);
     if (success && state.hasValue) {
-      final currentAlerts = state.value!.where((a) => a.id != alertId).toList();
+      final currentAlerts =
+          state.value!.where((a) => a.id != alertId).toList();
       state = AsyncData(currentAlerts);
     }
     return success;
@@ -110,11 +119,14 @@ final liveReadingsStreamProvider = StreamProvider<List<SensorReading>>((ref) {
 });
 
 // Global sensors map provider
-final sensorsMapProvider = StateNotifierProvider<SensorsMapNotifier, AsyncValue<Map<String, SensorReading>>>((ref) {
+final sensorsMapProvider =
+    StateNotifierProvider<SensorsMapNotifier, AsyncValue<Map<String, SensorReading>>>(
+        (ref) {
   final notifier = SensorsMapNotifier();
   notifier.fetchInitialSensors();
 
-  ref.listen<AsyncValue<List<SensorReading>>>(liveReadingsStreamProvider, (previous, next) {
+  ref.listen<AsyncValue<List<SensorReading>>>(liveReadingsStreamProvider,
+      (previous, next) {
     if (next.hasValue && next.value != null) {
       notifier.updateFromLive(next.value!);
     }
@@ -123,10 +135,16 @@ final sensorsMapProvider = StateNotifierProvider<SensorsMapNotifier, AsyncValue<
   return notifier;
 });
 
-class SensorsMapNotifier extends StateNotifier<AsyncValue<Map<String, SensorReading>>> {
+class SensorsMapNotifier
+    extends StateNotifier<AsyncValue<Map<String, SensorReading>>> {
   SensorsMapNotifier() : super(const AsyncLoading());
 
   Future<void> fetchInitialSensors() async {
+    if (AppConfig.isUnconfigured) {
+      // Don't throw network errors when no IP is configured yet
+      state = const AsyncData({});
+      return;
+    }
     try {
       state = const AsyncLoading();
       final allSensors = await apiService.fetchCurrentSensors();
@@ -139,30 +157,27 @@ class SensorsMapNotifier extends StateNotifier<AsyncValue<Map<String, SensorRead
   void updateFromLive(List<SensorReading> liveReadings) {
     if (state.hasValue && state.value != null) {
       final currentMap = Map<String, SensorReading>.from(state.value!);
-      bool changed = false;
-
       for (final r in liveReadings) {
         currentMap[r.id] = r;
-        changed = true;
       }
-
-      if (changed) {
-        state = AsyncData(currentMap);
-      }
+      state = AsyncData(currentMap);
     }
   }
 }
 
 // Current Sensors State for a specific subsystem
-final currentSensorsProvider = Provider.family<AsyncValue<List<SensorReading>>, String>((ref, subsystem) {
+final currentSensorsProvider =
+    Provider.family<AsyncValue<List<SensorReading>>, String>((ref, subsystem) {
   final sensorsMap = ref.watch(sensorsMapProvider);
   return sensorsMap.whenData((map) {
-    return map.values.where((s) => s.subsystem == subsystem).toList();
+    final lower = subsystem.toLowerCase();
+    return map.values.where((s) => s.subsystem.toLowerCase() == lower).toList();
   });
 });
 
 // Selected sensors for comparison feature
-final selectedSensorsProvider = StateNotifierProvider<SelectedSensorsNotifier, List<String>>((ref) {
+final selectedSensorsProvider =
+    StateNotifierProvider<SelectedSensorsNotifier, List<String>>((ref) {
   return SelectedSensorsNotifier();
 });
 

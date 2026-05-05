@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:go_router/go_router.dart';
-import 'package:go_router/go_router.dart';
 import '../providers/providers.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
@@ -151,7 +150,9 @@ class _SensorBottomSheetState extends ConsumerState<_SensorBottomSheet> {
   String? _error;
   List<FlSpot> _spots = [];
   double _currentValue = 0.0;
-  int _tick = 0;
+  double _lastStreamedValue = double.nan;
+
+  static const int _historyMinutes = 60;
 
   double _minVal = double.maxFinite;
   double _maxVal = double.minPositive;
@@ -167,18 +168,17 @@ class _SensorBottomSheetState extends ConsumerState<_SensorBottomSheet> {
 
   Future<void> _loadHistory() async {
     try {
-      final history = await apiService.fetchSensorHistory(widget.sensor.id, minutes: 15);
-      
+      final history = await apiService.fetchSensorHistory(widget.sensor.id, minutes: _historyMinutes);
+
       final newSpots = <FlSpot>[];
-      for (int i = 0; i < history.length; i++) {
-        final double val = (history[i]['value'] as num).toDouble();
+      for (final entry in history) {
+        final double val = (entry['value'] as num).toDouble();
+        final rawTime = entry['time'] ?? entry['timestamp'];
+        final ts = rawTime != null
+            ? DateTime.parse(rawTime as String).millisecondsSinceEpoch.toDouble()
+            : DateTime.now().millisecondsSinceEpoch.toDouble();
         _updateStats(val);
-        newSpots.add(FlSpot(_tick.toDouble(), val));
-        _tick++;
-      }
-      
-      if (newSpots.length > 60) {
-        newSpots.removeRange(0, newSpots.length - 60);
+        newSpots.add(FlSpot(ts, val));
       }
 
       setState(() {
@@ -208,15 +208,16 @@ class _SensorBottomSheetState extends ConsumerState<_SensorBottomSheet> {
       if (next.hasValue && next.value != null && !_isLoading) {
         try {
           final updatedSensor = next.value!.firstWhere((s) => s.id == widget.sensor.id);
+          final val = updatedSensor.value;
+          if (val == _lastStreamedValue) return;
+          final cutoffMs = DateTime.now().millisecondsSinceEpoch - _historyMinutes * 60 * 1000;
+          final ts = updatedSensor.timestamp.millisecondsSinceEpoch.toDouble();
           setState(() {
-            _currentValue = updatedSensor.value;
-            _updateStats(_currentValue);
-            _spots.add(FlSpot(_tick.toDouble(), _currentValue));
-            _tick++;
-            
-            if (_spots.length > 60) {
-              _spots.removeAt(0);
-            }
+            _lastStreamedValue = val;
+            _currentValue = val;
+            _updateStats(val);
+            _spots.add(FlSpot(ts, val));
+            _spots.removeWhere((s) => s.x < cutoffMs);
           });
         } catch (_) {}
       }
@@ -307,11 +308,19 @@ class _SensorBottomSheetState extends ConsumerState<_SensorBottomSheet> {
               lineBarsData: [
                 LineChartBarData(
                   spots: _spots,
-                  isCurved: true,
+                  isCurved: false,
                   color: Colors.blueAccent,
-                  barWidth: 3,
+                  barWidth: 2,
                   isStrokeCapRound: true,
-                  dotData: FlDotData(show: false),
+                  dotData: FlDotData(
+                    show: true,
+                    getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+                      radius: 2.0,
+                      color: Colors.blueAccent,
+                      strokeWidth: 0,
+                      strokeColor: Colors.transparent,
+                    ),
+                  ),
                   belowBarData: BarAreaData(
                     show: true,
                     color: Colors.blueAccent.withOpacity(0.2),
