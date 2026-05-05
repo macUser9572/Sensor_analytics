@@ -2,7 +2,6 @@ services:
   timescaledb:
     image: timescale/timescaledb:latest-pg17
     container_name: bhel_timescaledb
-    env_file: .env
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -17,7 +16,7 @@ services:
     networks:
       - bhel_net
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -h 0.0.0.0 -p 5432 -U \"$${DB_USER}\" -d \"$${DB_NAME}\"" ]
+      test: [ "CMD-SHELL", "pg_isready -h 0.0.0.0 -p 5432 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\"" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -26,7 +25,6 @@ services:
   minio:
     image: minio/minio:latest
     container_name: bhel_minio
-    env_file: .env
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
@@ -40,7 +38,7 @@ services:
     networks:
       - bhel_net
     healthcheck:
-      test: [ "CMD-SHELL", "mc alias set bhel http://0.0.0.0:9000 \"$${MINIO_ACCESS_KEY}\" \"$${MINIO_SECRET_KEY}\" >/dev/null 2>&1 && mc ready bhel" ]
+      test: [ "CMD-SHELL", "mc alias set bhel http://0.0.0.0:9000 \"$${MINIO_ROOT_USER}\" \"$${MINIO_ROOT_PASSWORD}\" >/dev/null 2>&1 && mc ready bhel" ]
       interval: 10s
       timeout: 5s
       retries: 5

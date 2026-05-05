@@ -16,7 +16,7 @@ services:
     networks:
       - bhel_net
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import os, httpx; port=os.getenv('API_PORT'); r=httpx.get(f'http://0.0.0.0:{port}/health', timeout=5); assert r.status_code == 200\""]
+      test: ["CMD-SHELL", "python -c \"import os, httpx; port=os.getenv('API_PORT'); r=httpx.get(f'http://127.0.0.1:{port}/health', timeout=5); assert r.status_code == 200 and r.json().get('status') == 'ok'\""]
       interval: 30s
       timeout: 10s
       retries: 3

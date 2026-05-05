@@ -8,6 +8,17 @@ from simulator.service import SimulatorService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+for noisy_logger in (
+    "asyncua",
+    "asyncua.server",
+    "asyncua.server.address_space",
+    "asyncua.server.binary_server_asyncio",
+    "asyncua.server.internal_server",
+    "asyncua.server.internal_session",
+    "asyncua.server.uaprocessor",
+    "asyncua.uaprotocol",
+):
+    logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
 
 async def main() -> None:

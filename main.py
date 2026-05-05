@@ -31,6 +31,17 @@ from websocket.router import redis_subscriber, router as websocket_router
 
 
 logger = logging.getLogger(__name__)
+for noisy_logger in (
+    "asyncua",
+    "asyncua.server",
+    "asyncua.server.address_space",
+    "asyncua.server.binary_server_asyncio",
+    "asyncua.server.internal_server",
+    "asyncua.server.internal_session",
+    "asyncua.server.uaprocessor",
+    "asyncua.uaprotocol",
+):
+    logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
 
 @asynccontextmanager
