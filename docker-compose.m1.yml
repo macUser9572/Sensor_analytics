@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: bhel_opcua_server
-    command: python app/opcua_bridge.py
+    command: python -m app.opcua_bridge
     env_file: .env
     ports:
       - "0.0.0.0:${OPC_PORT}:${OPC_PORT}"
