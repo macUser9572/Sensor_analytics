@@ -61,6 +61,26 @@ function computeStats(values) {
   };
 }
 
+function visibleValueRange(values, sensor) {
+  const numericValues = (values || []).filter(v => Number.isFinite(v));
+  if (numericValues.length === 0) return undefined;
+
+  const min = Math.min(...numericValues);
+  const max = Math.max(...numericValues);
+  const thresholdValues = [sensor?.min_threshold, sensor?.max_threshold, sensor?.threshold]
+    .map(Number)
+    .filter(Number.isFinite)
+    .filter(v => v >= min && v <= max);
+
+  const visibleMin = Math.min(min, ...thresholdValues);
+  const visibleMax = Math.max(max, ...thresholdValues);
+  const span = visibleMax - visibleMin;
+  const fallbackSpan = Math.max(Math.abs(visibleMax) * 0.02, 1);
+  const padding = Math.max((span || fallbackSpan) * 0.18, fallbackSpan * 0.35);
+
+  return [visibleMin - padding, visibleMax + padding];
+}
+
 function sensorPoint(sensor) {
   const value = Number(sensor?.value);
   if (!Number.isFinite(value)) return null;
@@ -194,15 +214,15 @@ export default function SensorDetailModal({ sensor, onClose }) {
 
     const x = history.x.slice(-600);
     const y = history.y.slice(-600);
+    const yAxisRange = visibleValueRange(y, sensor);
     const trace = {
       x,
       y,
       type: 'scatter',
-      mode: y.length < 2 ? 'markers' : 'lines',
-      fill: 'tozeroy',
-      fillcolor: `${lineColor}15`,
+      mode: y.length < 2 ? 'markers' : 'lines+markers',
+      fill: 'none',
       line: { color: lineColor, width: 2, shape: 'spline', smoothing: 0.45 },
-      marker: { color: lineColor, size: 6 },
+      marker: { color: lineColor, size: 4 },
       hovertemplate: '%{x|%H:%M:%S}<br><b>%{y:.2f}</b><extra></extra>',
     };
 
@@ -224,6 +244,8 @@ export default function SensorDetailModal({ sensor, onClose }) {
         showgrid: true,
         gridcolor: '#222',
         zeroline: false,
+        autorange: !yAxisRange,
+        ...(yAxisRange ? { range: yAxisRange } : {}),
         tickfont: { color: '#9e9e9e', family: 'Share Tech Mono', size: 10 },
       },
       hoverlabel: {

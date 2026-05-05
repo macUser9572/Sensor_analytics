@@ -20,10 +20,15 @@ async def get_sensor_history(sensor_id: str, minutes: int = 60) -> list[dict]:
         if minutes <= 60:
             rows = await conn.fetch(
                 """
-                SELECT time, value
+                SELECT
+                    time_bucket('15 seconds', time) AS time,
+                    avg(value) AS value,
+                    min(value) AS min_val,
+                    max(value) AS max_val
                 FROM readings
                 WHERE sensor_id = $1
                   AND time > NOW() - ($2 * INTERVAL '1 minute')
+                GROUP BY time_bucket('15 seconds', time)
                 ORDER BY time ASC
                 """,
                 sensor_id,
@@ -32,7 +37,7 @@ async def get_sensor_history(sensor_id: str, minutes: int = 60) -> list[dict]:
         else:
             rows = await conn.fetch(
                 """
-                SELECT bucket AS time, mean AS value
+                SELECT bucket AS time, mean AS value, min_val, max_val
                 FROM readings_1min
                 WHERE sensor_id = $1
                   AND bucket > NOW() - ($2 * INTERVAL '1 minute')
@@ -46,6 +51,8 @@ async def get_sensor_history(sensor_id: str, minutes: int = 60) -> list[dict]:
             {
                 "time": _iso(row["time"]),
                 "value": float(row["value"]) if row["value"] is not None else None,
+                "min_val": _float_or_none(row["min_val"]),
+                "max_val": _float_or_none(row["max_val"]),
             }
             for row in rows
         ]
