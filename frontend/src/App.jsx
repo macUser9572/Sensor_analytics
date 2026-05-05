@@ -23,7 +23,7 @@ export default function App() {
     const { sensorReadings } = useWebSockets();
     const [activeView, setActiveView] = useState('overview');
     const [selectedSensorIds, setSelectedSensorIds] = useState([]);
-    const [selectedSensor, setSelectedSensor] = useState(null);
+    const [selectedSensorId, setSelectedSensorId] = useState(null);
     // View before compare — to restore when clearing
     const [preCompareView, setPreCompareView] = useState('overview');
 
@@ -39,7 +39,7 @@ export default function App() {
 
     const handleSensorClick = (sensorId) => {
         const reading = sensorReadings[sensorId];
-        if (reading) setSelectedSensor(reading);
+        if (reading) setSelectedSensorId(sensorId);
     };
 
     const handleCompareClick = () => {
@@ -67,6 +67,7 @@ export default function App() {
 
     // Show gauges on all views except overview and compare
     const showGauges = activeView !== 'overview' && activeView !== 'compare';
+    const selectedSensor = selectedSensorId ? sensorReadings[selectedSensorId] : null;
 
     return (
         <Layout
@@ -125,7 +126,7 @@ export default function App() {
                 <SensorDetailModal
                     sensor={selectedSensor}
                     source="heatmap"
-                    onClose={() => setSelectedSensor(null)}
+                    onClose={() => setSelectedSensorId(null)}
                 />
             )}
         </Layout>

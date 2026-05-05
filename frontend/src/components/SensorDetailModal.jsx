@@ -47,11 +47,12 @@ const LINE_COLORS = {
 };
 
 function computeStats(values) {
-  if (!values || values.length === 0) return { min: 0, max: 0, mean: 0, std_dev: 0 };
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  const variance = values.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0) / values.length;
+  const numericValues = (values || []).filter(v => Number.isFinite(v));
+  if (numericValues.length === 0) return { min: 0, max: 0, mean: 0, std_dev: 0 };
+  const min = Math.min(...numericValues);
+  const max = Math.max(...numericValues);
+  const mean = numericValues.reduce((a, b) => a + b, 0) / numericValues.length;
+  const variance = numericValues.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0) / numericValues.length;
   return {
     min: min.toFixed(2),
     max: max.toFixed(2),
@@ -60,13 +61,60 @@ function computeStats(values) {
   };
 }
 
+function sensorPoint(sensor) {
+  const value = Number(sensor?.value);
+  if (!Number.isFinite(value)) return null;
+  return {
+    x: sensor.timestamp || sensor.last_seen || new Date().toISOString(),
+    y: value,
+  };
+}
+
+function historyFromLiveSensor(sensor) {
+  const point = sensorPoint(sensor);
+  return point ? { x: [point.x], y: [point.y] } : { x: [], y: [] };
+}
+
+function historyFromResponse(data) {
+  const rows = Array.isArray(data) ? data : [];
+  const x = [];
+  const y = [];
+
+  rows.forEach((row) => {
+    const value = Number(row?.value);
+    const time = row?.time || row?.timestamp;
+    if (!time || !Number.isFinite(value)) return;
+    x.push(time);
+    y.push(value);
+  });
+
+  return { x, y };
+}
+
+function withLivePoint(history, sensor) {
+  const point = sensorPoint(sensor);
+  if (!point) return history;
+
+  const lastIndex = history.x.length - 1;
+  if (history.x[lastIndex] === point.x && history.y[lastIndex] === point.y) {
+    return history;
+  }
+
+  return {
+    x: [...history.x, point.x],
+    y: [...history.y, point.y],
+  };
+}
+
 export default function SensorDetailModal({ sensor, onClose }) {
   const { alerts } = useWebSockets();
   const containerRef = useRef(null);
   const initializedRef = useRef(false);
-  const lastValueRef = useRef(null);
+  const lastPointRef = useRef(null);
 
   const [history, setHistory] = useState(null);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [historyError, setHistoryError] = useState(null);
   const [stats, setStats] = useState({ min: 0, max: 0, mean: 0, std_dev: 0 });
 
   const state = getSensorState(sensor);
@@ -84,38 +132,56 @@ export default function SensorDetailModal({ sensor, onClose }) {
   // Fetch history
   useEffect(() => {
     let active = true;
+
+    initializedRef.current = false;
+    const initialPoint = sensorPoint(sensor);
+    lastPointRef.current = initialPoint ? `${initialPoint.x}:${initialPoint.y}` : null;
+    setHistory(historyFromLiveSensor(sensor));
+    setLoadingHistory(true);
+    setHistoryError(null);
+
     const fetchHistory = async () => {
       try {
         const res = await axios.get(apiUrl(`/data/sensors/${sensor.id}/history?minutes=60`));
         if (!active) return;
-        const data = res.data;
-        if (data && data.length > 0) {
-          const x = data.map(d => d.time || d.timestamp);
-          const y = data.map(d => d.value);
-          setHistory({ x, y });
-          setStats(computeStats(y));
-        }
+        const fetchedHistory = withLivePoint(historyFromResponse(res.data), sensor);
+        setHistory(prev => fetchedHistory.y.length > 0 ? fetchedHistory : (prev || historyFromLiveSensor(sensor)));
+        setLoadingHistory(false);
       } catch (err) {
         console.error('Failed to load history', err);
+        if (!active) return;
+        setHistory(prev => prev || historyFromLiveSensor(sensor));
+        setHistoryError('History unavailable; plotting live data.');
+        setLoadingHistory(false);
       }
     };
+
     fetchHistory();
     return () => { active = false; };
   }, [sensor.id]);
 
   // Append live ticks to history
   useEffect(() => {
-    if (history && sensor.value !== lastValueRef.current) {
-      lastValueRef.current = sensor.value;
-      setHistory(prev => {
-        if (!prev) return prev;
-        const newX = [...prev.x, sensor.timestamp || new Date().toISOString()];
-        const newY = [...prev.y, sensor.value];
-        if (newX.length > 3600) { newX.shift(); newY.shift(); }
-        return { x: newX, y: newY };
-      });
-    }
-  }, [sensor.value]);
+    const point = sensorPoint(sensor);
+    if (!point) return;
+
+    const pointKey = `${point.x}:${point.y}`;
+    if (pointKey === lastPointRef.current) return;
+    lastPointRef.current = pointKey;
+
+    setHistory(prev => {
+      const current = prev || { x: [], y: [] };
+      const lastIndex = current.x.length - 1;
+      if (current.x[lastIndex] === point.x && current.y[lastIndex] === point.y) {
+        return current;
+      }
+
+      const newX = [...current.x, point.x];
+      const newY = [...current.y, point.y];
+      if (newX.length > 3600) { newX.shift(); newY.shift(); }
+      return { x: newX, y: newY };
+    });
+  }, [sensor.id, sensor.timestamp, sensor.value]);
 
   // Update stats when history changes
   useEffect(() => {
@@ -126,14 +192,17 @@ export default function SensorDetailModal({ sensor, onClose }) {
   useEffect(() => {
     if (!containerRef.current || !history) return;
 
+    const x = history.x.slice(-600);
+    const y = history.y.slice(-600);
     const trace = {
-      x: history.x.slice(-300),
-      y: history.y.slice(-300),
+      x,
+      y,
       type: 'scatter',
-      mode: 'lines',
+      mode: y.length < 2 ? 'markers' : 'lines',
       fill: 'tozeroy',
       fillcolor: `${lineColor}15`,
-      line: { color: lineColor, width: 2 },
+      line: { color: lineColor, width: 2, shape: 'spline', smoothing: 0.45 },
+      marker: { color: lineColor, size: 6 },
       hovertemplate: '%{x|%H:%M:%S}<br><b>%{y:.2f}</b><extra></extra>',
     };
 
@@ -162,6 +231,8 @@ export default function SensorDetailModal({ sensor, onClose }) {
         bordercolor: lineColor,
         font: { color: '#fff', family: 'Share Tech Mono', size: 12 },
       },
+      uirevision: sensor.id,
+      transition: { duration: 120, easing: 'cubic-in-out' },
     };
 
     const config = { displayModeBar: false, responsive: true };
@@ -172,7 +243,15 @@ export default function SensorDetailModal({ sensor, onClose }) {
     } else {
       Plotly.react(containerRef.current, [trace], layout, config);
     }
-  }, [history, lineColor, sensor.unit]);
+  }, [history, lineColor, sensor.id, sensor.unit]);
+
+  useEffect(() => {
+    return () => {
+      if (containerRef.current) {
+        Plotly.purge(containerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-6">
@@ -240,6 +319,13 @@ export default function SensorDetailModal({ sensor, onClose }) {
             </div>
           )}
 
+          {(loadingHistory || historyError) && (
+            <div className="flex items-center space-x-3 text-xs text-gray-500 font-mono shrink-0">
+              {loadingHistory && <div className="w-4 h-4 border-2 border-industrial-border border-t-accent-cyan rounded-full animate-spin" />}
+              <span>{historyError || 'Loading 60-min history; live data is already plotting.'}</span>
+            </div>
+          )}
+
           {/* Fault alert details */}
           {isFaulted && faultAlert && (
             <div className="border border-status-critical/40 bg-red-950/30 rounded p-3 text-sm shrink-0">
@@ -264,14 +350,7 @@ export default function SensorDetailModal({ sensor, onClose }) {
 
           {/* History chart */}
           <div className="flex-1 min-h-0" style={{ minHeight: '240px' }}>
-            {history ? (
-              <div ref={containerRef} style={{ width: '100%', height: '100%', minHeight: '240px' }} />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center text-gray-600 space-y-3" style={{ minHeight: '240px' }}>
-                <div className="w-6 h-6 border-2 border-industrial-border border-t-accent-cyan rounded-full animate-spin" />
-                <span className="text-xs">Loading 60-min history...</span>
-              </div>
-            )}
+            <div ref={containerRef} style={{ width: '100%', height: '100%', minHeight: '240px' }} />
           </div>
         </div>
       </div>
