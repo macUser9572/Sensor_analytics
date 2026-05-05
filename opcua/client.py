@@ -6,6 +6,7 @@ from asyncua.common.node import Node
 
 from config import settings
 from opcua.handler import DataChangeHandler
+from simulator.registry import generate_sensor_registry
 
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,10 @@ class OPCUAClient:
         self._connected_event = asyncio.Event()
         self.sensor_nodes: dict[str, Node] = {}
         self.monitored_items = 0
+        self._sampling_intervals = {
+            sensor.id: sensor.sampling_interval_ms
+            for sensor in generate_sensor_registry()
+        }
 
     async def connect_and_subscribe(self) -> None:
         while not self._stop_event.is_set():
@@ -103,15 +108,7 @@ class OPCUAClient:
         return sensor_nodes
 
     def _get_interval(self, sensor_id: str) -> int:
-        if sensor_id.startswith("G"):
-            return 2000
-        if sensor_id.startswith("B"):
-            return 5000
-        if sensor_id.startswith("TR"):
-            return 15000
-        if sensor_id.startswith("T"):
-            return 10000
-        return 15000
+        return self._sampling_intervals.get(sensor_id, settings.opc_publish_interval_ms)
 
     async def start(self) -> None:
         if self._task and not self._task.done():

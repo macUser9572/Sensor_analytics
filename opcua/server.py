@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 
 from asyncua import Server, ua
 from asyncua.common.node import Node
@@ -19,6 +20,7 @@ class OPCUAServer:
         self._update_task: asyncio.Task | None = None
         self._ready = asyncio.Event()
         self._running = False
+        self._last_write_monotonic: dict[str, float] = {}
 
     async def setup(self) -> None:
         await self.server.init()
@@ -59,12 +61,24 @@ class OPCUAServer:
                 while True:
                     try:
                         readings = await self.simulator.tick()
+                        now = time.monotonic()
                         for reading in readings:
                             if self.simulator.is_sensor_killed(reading.sensor_id):
                                 continue
+
+                            sensor = self.simulator.get_sensor(reading.sensor_id)
+                            if sensor is None:
+                                continue
+
+                            interval_seconds = max(sensor.sampling_interval_ms / 1000, 0.1)
+                            last_write = self._last_write_monotonic.get(reading.sensor_id)
+                            if last_write is not None and now - last_write < interval_seconds:
+                                continue
+
                             node = self.sensor_nodes.get(reading.sensor_id)
                             if node is not None:
                                 await node.write_value(reading.value)
+                                self._last_write_monotonic[reading.sensor_id] = now
                     except asyncio.CancelledError:
                         raise
                     except Exception:

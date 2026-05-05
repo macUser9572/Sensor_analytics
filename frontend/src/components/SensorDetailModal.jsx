@@ -81,6 +81,24 @@ function visibleValueRange(values, sensor) {
   return [visibleMin - padding, visibleMax + padding];
 }
 
+function visibleTimeRange(values) {
+  const times = (values || [])
+    .map(value => new Date(value).getTime())
+    .filter(Number.isFinite);
+
+  if (times.length < 2) return undefined;
+
+  const min = Math.min(...times);
+  const max = Math.max(...times);
+  const span = max - min;
+  const padding = Math.max(span * 0.08, 5000);
+
+  return [
+    new Date(min - padding).toISOString(),
+    new Date(max + padding).toISOString(),
+  ];
+}
+
 function sensorPoint(sensor) {
   const value = Number(sensor?.value);
   if (!Number.isFinite(value)) return null;
@@ -214,6 +232,7 @@ export default function SensorDetailModal({ sensor, onClose }) {
 
     const x = history.x.slice(-600);
     const y = history.y.slice(-600);
+    const xAxisRange = visibleTimeRange(x);
     const yAxisRange = visibleValueRange(y, sensor);
     const trace = {
       x,
@@ -235,6 +254,8 @@ export default function SensorDetailModal({ sensor, onClose }) {
         showgrid: true,
         gridcolor: '#222',
         zeroline: false,
+        autorange: !xAxisRange,
+        ...(xAxisRange ? { range: xAxisRange } : {}),
         tickfont: { color: '#666', family: 'Share Tech Mono', size: 10 },
         tickformat: '%H:%M:%S',
         nticks: 6,
@@ -253,7 +274,7 @@ export default function SensorDetailModal({ sensor, onClose }) {
         bordercolor: lineColor,
         font: { color: '#fff', family: 'Share Tech Mono', size: 12 },
       },
-      uirevision: sensor.id,
+      datarevision: `${sensor.id}:${history.x.length}:${history.y.length}`,
       transition: { duration: 120, easing: 'cubic-in-out' },
     };
 
@@ -266,6 +287,27 @@ export default function SensorDetailModal({ sensor, onClose }) {
       Plotly.react(containerRef.current, [trace], layout, config);
     }
   }, [history, lineColor, sensor.id, sensor.unit]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return undefined;
+
+    const resize = () => {
+      if (initializedRef.current) {
+        Plotly.Plots.resize(container);
+      }
+    };
+
+    const resizeObserver = new ResizeObserver(resize);
+    resizeObserver.observe(container);
+    window.addEventListener('resize', resize);
+    requestAnimationFrame(resize);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
