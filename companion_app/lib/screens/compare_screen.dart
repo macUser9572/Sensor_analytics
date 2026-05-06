@@ -273,7 +273,7 @@ class _CompareScreenState extends ConsumerState<CompareScreen> {
               reservedSize: 28,
               interval: (maxX - minX) / 4,
               getTitlesWidget: (val, meta) {
-                final dt = DateTime.fromMillisecondsSinceEpoch(val.toInt());
+                final dt = DateTime.fromMillisecondsSinceEpoch(val.toInt(), isUtc: true).add(const Duration(hours: 5, minutes: 30));
                 return Text(
                   '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}',
                   style: const TextStyle(fontSize: 9, color: Colors.grey),

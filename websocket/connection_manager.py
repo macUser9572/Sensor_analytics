@@ -47,7 +47,7 @@ class ConnectionManager:
     async def _load_history(self, redis) -> dict[str, list[dict[str, Any]]]:
         pipeline = redis.pipeline(transaction=False)
         for sensor_id in self._sensor_ids:
-            pipeline.zrange(f"sensor:{sensor_id}", -30, -1)
+            pipeline.zrange(f"sensor:{sensor_id}", -1, -1)
 
         try:
             results = await pipeline.execute()
@@ -68,4 +68,3 @@ class ConnectionManager:
                 history[sensor_id] = readings
 
         return history
-

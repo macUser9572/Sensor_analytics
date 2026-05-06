@@ -15,6 +15,13 @@ const toISTString = (dateInput) => {
   return formatter.format(d);
 };
 
+const toISTChartString = (dateInput) => {
+  const d = new Date(dateInput);
+  const istTime = new Date(d.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+  const pad = (n) => n.toString().padStart(2, '0');
+  return `${istTime.getFullYear()}-${pad(istTime.getMonth()+1)}-${pad(istTime.getDate())} ${pad(istTime.getHours())}:${pad(istTime.getMinutes())}:${pad(istTime.getSeconds())}`;
+};
+
 function getSensorState(sensor) {
   if (!sensor) return 'fault';
   const status = sensor.status?.toLowerCase();
@@ -94,8 +101,8 @@ function visibleTimeRange(values) {
   const padding = Math.max(span * 0.08, 5000);
 
   return [
-    new Date(min - padding).toISOString(),
-    new Date(max + padding).toISOString(),
+    toISTChartString(min - padding),
+    toISTChartString(max + padding),
   ];
 }
 
@@ -230,9 +237,9 @@ export default function SensorDetailModal({ sensor, onClose }) {
   useEffect(() => {
     if (!containerRef.current || !history) return;
 
-    const x = history.x.slice(-600);
+    const x = history.x.slice(-600).map(toISTChartString);
     const y = history.y.slice(-600);
-    const xAxisRange = visibleTimeRange(x);
+    const xAxisRange = visibleTimeRange(history.x.slice(-600));
     const yAxisRange = visibleValueRange(y, sensor);
     const trace = {
       x,

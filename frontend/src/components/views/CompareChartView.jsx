@@ -9,6 +9,22 @@ const COLORS = [
     '#64ffda', '#ff6e40', '#ccff90', '#ea80fc', '#80d8ff',
 ];
 
+const toChartTime = (dateInput) => {
+    const d = new Date(dateInput);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.getTime();
+};
+
+const normalizeHistoryPoint = (point) => {
+    const rawTime = point?.time || point?.timestamp;
+    const time = toChartTime(rawTime);
+    const value = Number(point?.value);
+
+    if (!Number.isFinite(time) || !Number.isFinite(value)) return null;
+
+    return { time, value };
+};
+
 const TIME_OPTIONS = [
     { label: '15 min', minutes: 15 },
     { label: '1 h',   minutes: 60 },
@@ -34,6 +50,7 @@ function buildLayout(dualAxis, primaryUnit, secondaryUnit) {
             showgrid: true,
             gridcolor: '#222',
             zeroline: false,
+            autorange: true,
             tickfont: { color: '#9e9e9e', family: 'Share Tech Mono', size: 10 },
             tickformat: '%H:%M:%S',
         },
@@ -42,6 +59,7 @@ function buildLayout(dualAxis, primaryUnit, secondaryUnit) {
             showgrid: true,
             gridcolor: '#222',
             zeroline: false,
+            autorange: true,
             tickfont: { color: '#9e9e9e', family: 'Share Tech Mono', size: 10 },
         },
         ...(dualAxis && {
@@ -51,6 +69,7 @@ function buildLayout(dualAxis, primaryUnit, secondaryUnit) {
                 side: 'right',
                 showgrid: false,
                 zeroline: false,
+                autorange: true,
                 tickfont: { color: '#9e9e9e', family: 'Share Tech Mono', size: 10 },
             },
         }),
@@ -76,14 +95,20 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
     const lastValuesRef  = useRef({});
     // live points accumulated since last full fetch: { id: { x: string[], y: number[] } }
     const livePointsRef  = useRef({});
+    const readingsRef    = useRef(sensorReadings || {});
 
     const [minutes,   setMinutes]   = useState(60);
-    const [loading,   setLoading]   = useState(false);
+    const [loading,   setLoading]   = useState(true);
+    const [hasFetched, setHasFetched] = useState(false);
     const [error,     setError]     = useState(null);
     const [traceData, setTraceData] = useState({});
 
+    useEffect(() => {
+        readingsRef.current = sensorReadings || {};
+    }, [sensorReadings]);
+
     // Build full trace array from historical DB data merged with accumulated live points
-    const buildTraces = useCallback((data, livePts, readings, ids, mins) => {
+    const buildTraces = useCallback((data, livePts, readings, ids) => {
         const units = {};
         ids.forEach(id => {
             const r = readings?.[id];
@@ -94,16 +119,24 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
         const primaryUnit   = uniqueUnits[0] || '';
         const secondaryUnit = uniqueUnits[1] || '';
 
-        const cutoff = Date.now() - mins * 60 * 1000;
-
         const traces = ids.map((id, i) => {
-            const historical = (data[id] || []).filter(d =>
-                new Date(d.time || d.timestamp).getTime() >= cutoff
-            );
+            const historical = (data[id] || [])
+                .map(normalizeHistoryPoint)
+                .filter(Boolean);
             const live = livePts[id] || { x: [], y: [] };
+            const livePoints = live.x
+                .map((rawTime, idx) => {
+                    const time = toChartTime(rawTime);
+                    const value = Number(live.y[idx]);
+                    return Number.isFinite(time) && Number.isFinite(value) ? { time, value } : null;
+                })
+                .filter(Boolean);
 
-            const x = [...historical.map(d => d.time || d.timestamp), ...live.x];
-            const y = [...historical.map(d => d.value),               ...live.y];
+            const x = [
+                ...historical.map(d => d.time),
+                ...livePoints.map(d => d.time),
+            ];
+            const y = [...historical.map(d => d.value), ...livePoints.map(d => d.value)];
 
             const sensorUnit = units[id] || '';
             const onSecondary = dualAxis && sensorUnit && sensorUnit !== primaryUnit;
@@ -129,20 +162,30 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
 
     // ── Fetch historical data ────────────────────────────────────────────────
     const fetchData = useCallback(async () => {
-        if (!selectedSensorIds || selectedSensorIds.length === 0) return;
+        if (!selectedSensorIds || selectedSensorIds.length === 0) {
+            livePointsRef.current = {};
+            lastValuesRef.current = {};
+            setTraceData({});
+            setHasFetched(true);
+            setLoading(false);
+            return;
+        }
         setLoading(true);
+        setHasFetched(false);
         setError(null);
         try {
-            const ids = selectedSensorIds.join(',');
+            const ids = encodeURIComponent(selectedSensorIds.join(','));
             const res = await axios.get(apiUrl(`/data/sensors/compare?ids=${ids}&minutes=${minutes}`));
             // Reset live buffers on every fresh fetch so we don't double-count
             livePointsRef.current  = {};
             lastValuesRef.current  = {};
             initializedRef.current = false;
             setTraceData(res.data);
+            setHasFetched(true);
         } catch (err) {
             console.error('CompareChartView fetch error', err);
             setError('Failed to fetch comparison data.');
+            setHasFetched(true);
         } finally {
             setLoading(false);
         }
@@ -152,10 +195,10 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
 
     // ── Full chart redraw whenever historical data changes (fetch / refetch) ──
     useEffect(() => {
-        if (!containerRef.current || loading) return;
+        if (!containerRef.current || loading || !hasFetched) return;
 
         const { traces, dualAxis, primaryUnit, secondaryUnit } = buildTraces(
-            traceData, livePointsRef.current, sensorReadings, selectedSensorIds, minutes
+            traceData, livePointsRef.current, readingsRef.current, selectedSensorIds
         );
         const layout = buildLayout(dualAxis, primaryUnit, secondaryUnit);
         const config = { displayModeBar: false, responsive: true };
@@ -166,14 +209,13 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
         } else {
             Plotly.react(containerRef.current, traces, layout, config);
         }
-    }, [traceData, loading, selectedSensorIds, minutes]);
+    }, [buildTraces, traceData, loading, hasFetched, selectedSensorIds, minutes]);
 
     // ── Stream live ticks via Plotly.extendTraces (no full re-render) ────────
     useEffect(() => {
         if (!containerRef.current || !initializedRef.current) return;
         if (!sensorReadings || selectedSensorIds.length === 0) return;
 
-        const cutoff   = Date.now() - minutes * 60 * 1000;
         // maxPoints caps how many points Plotly keeps per trace (rolling window)
         const maxPoints = Math.ceil(minutes * 60);
 
@@ -183,26 +225,30 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
 
         selectedSensorIds.forEach((id, i) => {
             const reading = sensorReadings[id];
-            if (!reading || reading.value == null) return;
-            if (reading.value === lastValuesRef.current[id]) return;  // no change
+            const value = Number(reading?.value);
+            if (!reading || !Number.isFinite(value)) return;
+            if (value === lastValuesRef.current[id]) return;  // no change
 
-            lastValuesRef.current[id] = reading.value;
             const ts = reading.timestamp || new Date().toISOString();
+            const plotTime = toChartTime(ts);
+            if (!Number.isFinite(plotTime)) return;
+
+            lastValuesRef.current[id] = value;
 
             // Accumulate in livePointsRef for use in the next full redraw
             if (!livePointsRef.current[id]) livePointsRef.current[id] = { x: [], y: [] };
             const buf = livePointsRef.current[id];
             buf.x.push(ts);
-            buf.y.push(reading.value);
-            // Trim buffer to window
-            while (buf.x.length > 0 && new Date(buf.x[0]).getTime() < cutoff) {
+            buf.y.push(value);
+
+            while (buf.x.length > maxPoints) {
                 buf.x.shift();
                 buf.y.shift();
             }
 
             traceIndices.push(i);
-            xUpdates.push([ts]);
-            yUpdates.push([reading.value]);
+            xUpdates.push([plotTime]);
+            yUpdates.push([value]);
         });
 
         if (traceIndices.length === 0) return;
@@ -217,7 +263,7 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
         } catch (_) {
             // chart may not be ready yet on the very first tick; safe to ignore
         }
-    }, [sensorReadings]);
+    }, [sensorReadings, selectedSensorIds, minutes]);
 
     const subsystems = getSubsystemsFromIds(selectedSensorIds, sensorReadings);
     const subCount   = subsystems.size;
