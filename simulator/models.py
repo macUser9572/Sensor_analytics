@@ -26,4 +26,5 @@ class SensorReading:
     timestamp: datetime
     max_threshold: float
     min_threshold: float
+    baseline_value: float
     quality: str

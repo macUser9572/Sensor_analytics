@@ -48,6 +48,13 @@ export function useAlertStream() {
                 }
 
                 if (message.event === 'alert_fired' && message.alert) {
+                    if (message.alert.alert_type === 'sensor_recovered') {
+                        setActiveAlerts((prev) =>
+                            prev.filter((alert) => alert.sensor_id !== message.alert.sensor_id)
+                        );
+                        return;
+                    }
+
                     setActiveAlerts((prev) => {
                         const withoutDuplicate = prev.filter((alert) => alert.id !== message.alert.id);
                         return sortByNewest([message.alert, ...withoutDuplicate]);

@@ -35,6 +35,7 @@ export default function SubsystemLineChart({ subsystemId, subsystemLabel }) {
     const containerRef = useRef(null);
     const initializedRef = useRef(false);
     const historyRef = useRef({}); // sensor_id -> [values...]
+    const lastTimestampRef = useRef({}); // sensor_id -> latest plotted timestamp
     const [lastUpdate, setLastUpdate] = useState(null);
 
     // Filter readings for this subsystem
@@ -46,15 +47,20 @@ export default function SubsystemLineChart({ subsystemId, subsystemLabel }) {
 
     // Accumulate rolling history
     useEffect(() => {
+        let appended = false;
         subsystemReadings.forEach(r => {
             const id = r.id || r.sensor_id;
+            const ts = r.timestamp || r.last_seen || '';
+            if (ts && lastTimestampRef.current[id] === ts) return;
+            lastTimestampRef.current[id] = ts || `${Date.now()}:${r.value}`;
             if (!historyRef.current[id]) historyRef.current[id] = [];
-            historyRef.current[id].push({ v: r.value, state: getSensorState(r) });
+            historyRef.current[id].push({ v: r.value, state: getSensorState(r), ts });
             if (historyRef.current[id].length > MAX_POINTS) {
                 historyRef.current[id].shift();
             }
+            appended = true;
         });
-        setLastUpdate(new Date().toLocaleTimeString());
+        if (appended) setLastUpdate(new Date().toLocaleTimeString());
     }, [subsystemReadings]);
 
     // Draw/update chart
