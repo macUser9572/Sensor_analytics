@@ -30,7 +30,7 @@ function getSensorState(reading) {
 
 const MAX_POINTS = 60;
 
-export default function SubsystemLineChart({ subsystemId, subsystemLabel }) {
+ export default function SubsystemLineChart({ subsystemId, subsystemLabel }) {
     const { sensorReadings } = useWebSockets();
     const containerRef = useRef(null);
     const initializedRef = useRef(false);

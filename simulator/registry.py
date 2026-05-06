@@ -161,11 +161,11 @@ def _generate_generator() -> list[SensorDefinition]:
     sensors: list[SensorDefinition] = []
 
     categories = [
-        ("Generator Terminal Voltage Phase", "kV", 11.0, 0.05, 10.5, 11.5),
+        ("Generator Terminal Voltage Phase", "kV", 11.0, 0.01, 10.5, 11.5),
         ("Generator Stator Current Phase", "A", 15500.0, 45.0, 9000.0, 18000.0),
         ("Generator Grid Frequency Channel", "Hz", 50.0, 0.02, 48.5, 51.5),
         ("Generator Stator Winding Temperature", "°C", 92.0, 0.4, 45.0, 125.0),
-        ("Generator Active Power Export", "MW", 500.0, 1.5, 250.0, 540.0),
+        ("Generator Active Power Export", "MW", 500.0, 1.0, 250.0, 540.0),
     ]
 
     sensor_no = 1

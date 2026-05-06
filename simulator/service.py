@@ -82,6 +82,9 @@ class SimulatorService:
         logger.info("Fault triggered for %s toward %.3f", sensor_id, target)
 
     def resolve_fault(self, sensor_id: str) -> None:
+        sensor = self._sensor_by_id.get(sensor_id)
+        if sensor:
+            self.current_state[sensor_id] = sensor.baseline_value
         self.fault_mode.pop(sensor_id, None)
         self.fault_targets.pop(sensor_id, None)
         self._fault_steps.pop(sensor_id, None)

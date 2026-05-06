@@ -54,6 +54,16 @@ async def resolve_fault(request: Request, sensor_id: str):
 async def resolve_all_faults(request: Request):
     simulator = _simulator(request)
     resolved = simulator.resolve_all_faults()
+
+    alert_engine = getattr(request.app.state, "alert_engine", None)
+    if alert_engine:
+        to_resolve = [
+            sid for sid, a in list(alert_engine.active_alerts.items())
+            if alert_engine._is_threshold_alert(a)
+        ]
+        for sensor_id in to_resolve:
+            await alert_engine._resolve_alert(sensor_id)
+
     return {"status": "ok", "resolved": resolved}
 
 
