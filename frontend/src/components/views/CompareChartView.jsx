@@ -15,12 +15,13 @@ const toChartTime = (dateInput) => {
     return d.getTime();
 };
 
-const normalizeHistoryPoint = (point) => {
+const normalizeHistoryPoint = (point, cutoff) => {
     const rawTime = point?.time || point?.timestamp;
     const time = toChartTime(rawTime);
     const value = Number(point?.value);
 
     if (!Number.isFinite(time) || !Number.isFinite(value)) return null;
+    if (time < cutoff) return null;
 
     return { time, value };
 };
@@ -108,7 +109,7 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
     }, [sensorReadings]);
 
     // Build full trace array from historical DB data merged with accumulated live points
-    const buildTraces = useCallback((data, livePts, readings, ids) => {
+    const buildTraces = useCallback((data, livePts, readings, ids, mins) => {
         const units = {};
         ids.forEach(id => {
             const r = readings?.[id];
@@ -119,9 +120,11 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
         const primaryUnit   = uniqueUnits[0] || '';
         const secondaryUnit = uniqueUnits[1] || '';
 
+        const cutoff = Date.now() - mins * 60 * 1000;
+
         const traces = ids.map((id, i) => {
             const historical = (data[id] || [])
-                .map(normalizeHistoryPoint)
+                .map(point => normalizeHistoryPoint(point, cutoff))
                 .filter(Boolean);
             const live = livePts[id] || { x: [], y: [] };
             const livePoints = live.x
@@ -198,7 +201,7 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
         if (!containerRef.current || loading || !hasFetched) return;
 
         const { traces, dualAxis, primaryUnit, secondaryUnit } = buildTraces(
-            traceData, livePointsRef.current, readingsRef.current, selectedSensorIds
+            traceData, livePointsRef.current, readingsRef.current, selectedSensorIds, minutes
         );
         const layout = buildLayout(dualAxis, primaryUnit, secondaryUnit);
         const config = { displayModeBar: false, responsive: true };
@@ -216,6 +219,7 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
         if (!containerRef.current || !initializedRef.current) return;
         if (!sensorReadings || selectedSensorIds.length === 0) return;
 
+        const cutoff   = Date.now() - minutes * 60 * 1000;
         // maxPoints caps how many points Plotly keeps per trace (rolling window)
         const maxPoints = Math.ceil(minutes * 60);
 
@@ -240,8 +244,8 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
             const buf = livePointsRef.current[id];
             buf.x.push(ts);
             buf.y.push(value);
-
-            while (buf.x.length > maxPoints) {
+            // Trim buffer to window
+            while (buf.x.length > 0 && toChartTime(buf.x[0]) < cutoff) {
                 buf.x.shift();
                 buf.y.shift();
             }

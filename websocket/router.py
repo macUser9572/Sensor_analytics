@@ -19,8 +19,8 @@ redis_subscriber = RedisSubscriber(live_manager, alert_manager)
 @router.websocket("/live")
 async def live_stream(ws: WebSocket) -> None:
     redis_client = ws.app.state.redis_client
+    await live_manager.connect(ws, redis_client)
     try:
-        await live_manager.connect(ws, redis_client)
         while True:
             try:
                 message = await asyncio.wait_for(ws.receive_text(), timeout=30)
@@ -39,15 +39,15 @@ async def live_stream(ws: WebSocket) -> None:
 @router.websocket("/alerts")
 async def alert_stream(ws: WebSocket) -> None:
     redis_client = ws.app.state.redis_client
-    try:
-        await alert_manager.connect(ws, redis_client, send_history=False)
-        active_alerts = sorted(
-            ws.app.state.alert_engine.active_alerts.values(),
-            key=lambda alert: alert.get("fired_at", ""),
-            reverse=True,
-        )
-        await ws.send_text(json.dumps({"type": "active_alerts", "data": active_alerts}))
+    await alert_manager.connect(ws, redis_client, send_history=False)
+    active_alerts = sorted(
+        ws.app.state.alert_engine.active_alerts.values(),
+        key=lambda alert: alert.get("fired_at", ""),
+        reverse=True,
+    )
+    await ws.send_text(json.dumps({"type": "active_alerts", "data": active_alerts}))
 
+    try:
         while True:
             try:
                 message = await asyncio.wait_for(ws.receive_text(), timeout=30)
