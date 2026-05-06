@@ -17,7 +17,7 @@ from database import AsyncSessionLocal, engine, init_db
 from failure.watchdog import SensorWatchdog
 from persistence.batch_writer import BatchWriter
 from persistence.router import router as persistence_router
-from persistence.seed import insert_sensor_registry
+from persistence.seed import ensure_sensor_registry_seeded
 from routers import health
 from routers import opcua as opcua_router
 from routers import sensors as sensors_router
@@ -44,13 +44,38 @@ for noisy_logger in (
     logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
 
+DB_STARTUP_ATTEMPTS = 5
+DB_STARTUP_RETRY_SECONDS = 3
+
+
+async def prepare_database_for_storage(sensor_registry) -> None:
+    for attempt in range(1, DB_STARTUP_ATTEMPTS + 1):
+        try:
+            await init_db()
+            await ensure_sensor_registry_seeded(sensor_registry)
+            return
+        except Exception:
+            if attempt == DB_STARTUP_ATTEMPTS:
+                logger.exception(
+                    "Database init/seed failed after %s attempts; refusing to start data storage",
+                    DB_STARTUP_ATTEMPTS,
+                )
+                raise
+
+            logger.warning(
+                "Database init/seed attempt %s/%s failed; retrying in %ss",
+                attempt,
+                DB_STARTUP_ATTEMPTS,
+                DB_STARTUP_RETRY_SECONDS,
+                exc_info=True,
+            )
+            await asyncio.sleep(DB_STARTUP_RETRY_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    try:
-        await init_db()
-        await insert_sensor_registry(generate_sensor_registry())
-    except Exception:
-        logger.exception("Database init failed; continuing service startup")
+    startup_registry = generate_sensor_registry()
+    await prepare_database_for_storage(startup_registry)
 
     app.state.simulator = SimulatorService()
     await app.state.simulator.start()
