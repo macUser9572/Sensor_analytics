@@ -34,9 +34,7 @@ class AlertEngine:
                 alert_type = f"{reading.status}_threshold"
                 await self._fire_alert(reading, alert_type)
             elif self._is_threshold_alert(self.active_alerts[sensor_id]):
-                self.active_alerts[sensor_id]["value"] = reading.value
-                self.active_alerts[sensor_id]["severity"] = reading.status
-                self.active_alerts[sensor_id]["alert_type"] = f"{reading.status}_threshold"
+                await self._update_threshold_alert(reading)
 
         elif reading.status == "normal":
             active = self.active_alerts.get(sensor_id)
@@ -149,6 +147,23 @@ class AlertEngine:
         await self.redis.publish("alerts", json.dumps({"event": "alert_fired", "alert": alert}))
         asyncio.create_task(self._bg_persist_alert(alert))
 
+    async def _update_threshold_alert(self, reading: SensorReading) -> None:
+        alert = self.active_alerts.get(reading.sensor_id)
+        if not alert:
+            return
+
+        next_type = f"{reading.status}_threshold"
+        severity_changed = alert.get("alert_type") != next_type
+        alert["value"] = reading.value
+        alert["threshold"] = reading.max_threshold
+        alert["severity"] = reading.status
+        alert["alert_type"] = next_type
+        alert["message"] = f"{reading.name} {reading.status} threshold reached"
+
+        if severity_changed:
+            await self.redis.publish("alerts", json.dumps({"event": "alert_fired", "alert": alert}))
+            asyncio.create_task(self._bg_update_alert(alert))
+
     async def _resolve_alert(self, sensor_id: str) -> None:
         alert = self.active_alerts.pop(sensor_id, None)
         if not alert:
@@ -171,6 +186,13 @@ class AlertEngine:
                 await self._mark_resolved_in_db(alert_id)
             except Exception:
                 logger.exception("Failed to mark alert %s resolved in DB", alert_id)
+
+    async def _bg_update_alert(self, alert: dict) -> None:
+        async with self._db_sem:
+            try:
+                await self._update_alert_in_db(alert)
+            except Exception:
+                logger.exception("Failed to update alert %s in DB", alert.get("id"))
 
     async def _persist_alert(self, alert: dict) -> None:
         async with self.db_session_factory() as session:
@@ -212,6 +234,31 @@ class AlertEngine:
                     """
                 ),
                 {"id": alert_id},
+            )
+            await session.commit()
+
+    async def _update_alert_in_db(self, alert: dict) -> None:
+        async with self.db_session_factory() as session:
+            await session.execute(
+                text(
+                    """
+                    UPDATE alerts
+                    SET value = :value,
+                        threshold = :threshold,
+                        severity = :severity,
+                        alert_type = :alert_type,
+                        message = :message
+                    WHERE id = CAST(:id AS UUID)
+                    """
+                ),
+                {
+                    "id": alert["id"],
+                    "value": alert.get("value"),
+                    "threshold": alert.get("threshold"),
+                    "severity": alert["severity"],
+                    "alert_type": alert["alert_type"],
+                    "message": alert.get("message"),
+                },
             )
             await session.commit()
 

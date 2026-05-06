@@ -22,18 +22,20 @@ function getSensorState(reading) {
     return 'live';
 }
 
-function getColorForState(state, pct) {
-    if (state === 'fault' || state === 'missing') return '#424242';
-    if (state === 'uncertain') return '#f9a825';
-    if (state === 'stale') return '#1b3a2b'; // dim green
-    if (pct >= 100) return '#b71c1c'; // red
-    if (pct >= 80) return '#e65100';  // amber
-    return '#1b5e20'; // green
-}
-
 function getPctOfThreshold(reading) {
-    if (!reading || !reading.threshold || reading.threshold === 0) return 0;
-    return Math.round((Math.abs(reading.value) / reading.threshold) * 100);
+    if (!reading || reading.value == null) return 0;
+
+    const status = reading.status?.toLowerCase();
+    const max = Number(reading.max_threshold ?? reading.threshold);
+    const baseline = Number(reading.baseline_value ?? 0);
+    const value = Number(reading.value);
+
+    if (!Number.isFinite(max) || max === baseline) return 0;
+
+    const pct = Math.round(((value - baseline) / (max - baseline)) * 100);
+    if (status === 'critical') return Math.max(100, pct);
+    if (status === 'warning') return Math.max(80, pct);
+    return Math.min(79, Math.max(0, pct));
 }
 
 export default function SensorHeatmap({ onSensorClick }) {

@@ -1,4 +1,6 @@
+import json
 from dataclasses import asdict
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -48,11 +50,19 @@ async def resolve_fault(request: Request, sensor_id: str):
     return {"status": "ok", "sensor_id": sensor_id}
 
 
+@router.delete("/fault")
+async def resolve_all_faults(request: Request):
+    simulator = _simulator(request)
+    resolved = simulator.resolve_all_faults()
+    return {"status": "ok", "resolved": resolved}
+
+
 @router.post("/fault/sensor-kill/{sensor_id}")
 async def kill_sensor(request: Request, sensor_id: str):
     simulator = _simulator(request)
     try:
         simulator.kill_sensor(sensor_id)
+        await _publish_sensor_fault(request, sensor_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"status": "ok", "sensor_id": sensor_id, "publishing": "stopped"}
@@ -67,3 +77,36 @@ async def revive_sensor(request: Request, sensor_id: str):
 @router.get("/faults")
 async def get_faults(request: Request):
     return _simulator(request).get_active_faults()
+
+
+async def _publish_sensor_fault(request: Request, sensor_id: str) -> None:
+    simulator = _simulator(request)
+    snapshot = simulator.fault_snapshot(sensor_id)
+    redis_client = getattr(request.app.state, "redis_client", None)
+    if redis_client is not None:
+        score = datetime.now(timezone.utc).timestamp()
+        payload = json.dumps(
+            {
+                "type": "update",
+                "subsystem": snapshot["subsystem"],
+                "timestamp": snapshot["timestamp"],
+                "readings": [snapshot],
+            }
+        )
+        async with redis_client.pipeline(transaction=False) as pipe:
+            pipe.publish(f"subsystem:{snapshot['subsystem']}", payload)
+            pipe.zadd(f"sensor:{sensor_id}", {json.dumps(snapshot): score})
+            pipe.zremrangebyscore(f"sensor:{sensor_id}", 0, score - 600)
+            await pipe.execute()
+
+    watchdog = getattr(request.app.state, "watchdog", None)
+    if watchdog is not None:
+        await watchdog._publish_and_persist_alert(
+            sensor_id=sensor_id,
+            alert_type="sensor_fault",
+            severity="critical",
+            message="Demo sensor fault: publishing stopped instantly",
+            value=snapshot["value"],
+            threshold=snapshot["max_threshold"],
+        )
+        await watchdog.mark_fault(sensor_id, quality_code="demo_sensor_fault")

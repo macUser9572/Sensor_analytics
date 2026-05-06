@@ -87,6 +87,13 @@ class SimulatorService:
         self._fault_steps.pop(sensor_id, None)
         logger.info("Fault resolved for %s", sensor_id)
 
+    def resolve_all_faults(self) -> list[str]:
+        sensor_ids = sorted(set(self.fault_targets) | self.killed_sensors)
+        for sensor_id in sensor_ids:
+            self.resolve_fault(sensor_id)
+            self.revive_sensor(sensor_id)
+        return sensor_ids
+
     def kill_sensor(self, sensor_id: str) -> None:
         if self.get_sensor(sensor_id) is None:
             raise ValueError(f"Sensor {sensor_id} not found")
@@ -112,14 +119,46 @@ class SimulatorService:
         return self.sensors
 
     def get_active_faults(self) -> list[dict[str, float | str]]:
-        return [
+        ramp_faults = [
             {
                 "sensor_id": sensor_id,
+                "kind": "threshold",
                 "target": target,
                 "current_value": self.current_state[sensor_id],
             }
             for sensor_id, target in sorted(self.fault_targets.items())
         ]
+        stopped_faults = [
+            {
+                "sensor_id": sensor_id,
+                "kind": "sensor_fault",
+                "target": self.current_state[sensor_id],
+                "current_value": self.current_state[sensor_id],
+            }
+            for sensor_id in sorted(self.killed_sensors)
+            if sensor_id not in self.fault_targets
+        ]
+        return [*ramp_faults, *stopped_faults]
+
+    def fault_snapshot(self, sensor_id: str, *, quality: str = "bad") -> dict:
+        sensor = self.get_sensor(sensor_id)
+        if sensor is None:
+            raise ValueError(f"Sensor {sensor_id} not found")
+
+        return {
+            "id": sensor_id,
+            "sensor_id": sensor_id,
+            "name": sensor.name,
+            "subsystem": sensor.subsystem,
+            "value": self.current_state[sensor_id],
+            "unit": sensor.unit,
+            "status": "fault",
+            "quality": quality,
+            "max_threshold": sensor.max_threshold,
+            "min_threshold": sensor.min_threshold,
+            "baseline_value": sensor.baseline_value,
+            "timestamp": datetime.now(UTC).isoformat(),
+        }
 
     def _reading_for(self, sensor: SensorDefinition, timestamp: datetime) -> SensorReading:
         value = self.current_state[sensor.id]
@@ -133,6 +172,7 @@ class SimulatorService:
             timestamp=timestamp,
             max_threshold=sensor.max_threshold,
             min_threshold=sensor.min_threshold,
+            baseline_value=sensor.baseline_value,
             quality="good",
         )
 

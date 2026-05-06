@@ -142,6 +142,7 @@ class DataChangeHandler:
             "quality": quality,
             "max_threshold": meta.max_threshold,
             "min_threshold": meta.min_threshold,
+            "baseline_value": meta.baseline_value,
             "timestamp": timestamp,
         }
 
@@ -155,6 +156,7 @@ class DataChangeHandler:
             timestamp=timestamp_dt,
             max_threshold=meta.max_threshold,
             min_threshold=meta.min_threshold,
+            baseline_value=meta.baseline_value,
             quality=quality,
         )
 
