@@ -9,10 +9,24 @@ const COLORS = [
     '#64ffda', '#ff6e40', '#ccff90', '#ea80fc', '#80d8ff',
 ];
 
+// const toChartTime = (dateInput) => {
+//     const d = new Date(dateInput);
+//     if (Number.isNaN(d.getTime())) return null;
+//     return d.getTime();
+// };
+
 const toChartTime = (dateInput) => {
+    if (typeof dateInput === 'string') {
+        // Normalize "YYYY-MM-DD HH:MM:SS" → "YYYY-MM-DDTHH:MM:SS"
+        let s = dateInput.replace(' ', 'T');
+        // If no Z and no ±HH:MM offset, assume UTC
+        const hasTz = /Z$|[+-]\d{2}:?\d{2}$/.test(s);
+        if (!hasTz) s += 'Z';
+        const d = new Date(s);
+        return Number.isNaN(d.getTime()) ? null : d.getTime();
+    }
     const d = new Date(dateInput);
-    if (Number.isNaN(d.getTime())) return null;
-    return d.getTime();
+    return Number.isNaN(d.getTime()) ? null : d.getTime();
 };
 
 const normalizeHistoryPoint = (point, cutoff) => {
