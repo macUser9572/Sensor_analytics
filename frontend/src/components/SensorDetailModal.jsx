@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Plotly from 'plotly.js/dist/plotly';
+import Plotly from 'plotly.js/dist/plotly-cartesian';
 import axios from 'axios';
 import { apiUrl } from '../config';
 import { useWebSockets } from '../context/WebSocketContext';

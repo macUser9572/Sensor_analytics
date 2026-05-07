@@ -1,5 +1,4 @@
-import React, { useEffect, useRef } from 'react';
-import Plotly from 'plotly.js/dist/plotly';
+import React, { useEffect, useRef, useState } from 'react';
 import { useWebSockets } from '../../context/WebSocketContext';
 
 const GAUGES = [
@@ -105,6 +104,7 @@ function buildGaugeTrace(gauge, value) {
 
 export default function CriticalGauges() {
     const { sensorReadings } = useWebSockets();
+    const [plotly, setPlotly] = useState(null);
     const refs = [useRef(null), useRef(null), useRef(null)];
     const initialized = [useRef(false), useRef(false), useRef(false)];
 
@@ -118,6 +118,18 @@ export default function CriticalGauges() {
     const config = { displayModeBar: false, responsive: true };
 
     useEffect(() => {
+        let mounted = true;
+        import('plotly.js/dist/plotly').then((module) => {
+            if (mounted) setPlotly(module.default || module);
+        });
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!plotly) return;
+
         GAUGES.forEach((gauge, i) => {
             const el = refs[i].current;
             if (!el) return;
@@ -125,13 +137,13 @@ export default function CriticalGauges() {
             const trace = buildGaugeTrace(gauge, value);
 
             if (!initialized[i].current) {
-                Plotly.newPlot(el, [trace], layout, config);
+                plotly.newPlot(el, [trace], layout, config);
                 initialized[i].current = true;
             } else {
-                Plotly.react(el, [trace], layout, config);
+                plotly.react(el, [trace], layout, config);
             }
         });
-    }, [sensorReadings]);
+    }, [sensorReadings, plotly]);
 
     return (
         <div className="flex space-x-2 w-full" style={{ height: '180px' }}>

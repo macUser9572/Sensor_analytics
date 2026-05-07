@@ -19,17 +19,32 @@ _ALERT_DB_CONCURRENCY = 5
 
 
 class AlertEngine:
-    def __init__(self, redis_client, db_session_factory, sensor_registry):
+    def __init__(
+        self,
+        redis_client,
+        db_session_factory,
+        sensor_registry,
+        should_emit_threshold_alert=None,
+        should_keep_active_alert=None,
+    ):
         self.active_alerts: dict[str, dict] = {}
         self.redis = redis_client
         self.db_session_factory = db_session_factory
         self.registry = sensor_registry
+        self.should_emit_threshold_alert = should_emit_threshold_alert or (lambda _sensor_id: True)
+        self.should_keep_active_alert = should_keep_active_alert or (lambda _alert: True)
         self._db_sem = asyncio.Semaphore(_ALERT_DB_CONCURRENCY)
 
     async def process_reading(self, reading: SensorReading) -> None:
         sensor_id = reading.sensor_id
 
         if reading.status in ("warning", "critical"):
+            if not self.should_emit_threshold_alert(sensor_id):
+                active = self.active_alerts.get(sensor_id)
+                if active and self._is_threshold_alert(active):
+                    await self._resolve_alert(sensor_id)
+                return
+
             if sensor_id not in self.active_alerts:
                 alert_type = f"{reading.status}_threshold"
                 await self._fire_alert(reading, alert_type)
@@ -73,6 +88,8 @@ class AlertEngine:
             for row in result:
                 alert = self._serialize_alert(dict(row._mapping))
                 sensor_id = alert.get("sensor_id")
+                if not self.should_keep_active_alert(alert):
+                    continue
                 if sensor_id and sensor_id not in self.active_alerts:
                     self.active_alerts[sensor_id] = alert
         logger.info("Recovered %s active alerts from database", len(self.active_alerts))
@@ -88,6 +105,8 @@ class AlertEngine:
             return
         if terminal or alert.get("alert_type") in TERMINAL_ALERT_TYPES:
             await self.clear_sensor_alert(sensor_id)
+            return
+        if not self.should_keep_active_alert(alert):
             return
         if sensor_id not in self.active_alerts:
             self.active_alerts[sensor_id] = alert

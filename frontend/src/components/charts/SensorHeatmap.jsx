@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useMemo } from 'react';
-import Plotly from 'plotly.js/dist/plotly';
+import Plotly from 'plotly.js/dist/plotly-cartesian';
 import { useWebSockets } from '../../context/WebSocketContext';
 
 const SUBSYSTEMS = ['turbine', 'boiler', 'generator', 'cooling', 'transformer', 'auxiliary'];

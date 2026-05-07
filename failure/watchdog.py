@@ -27,11 +27,15 @@ class SensorWatchdog:
         db_session_factory,
         sensor_registry: dict[str, SensorDefinition] | None = None,
         alert_engine=None,
+        should_emit_sensor_alert=None,
     ):
         self.redis = redis_client
         self.db_session_factory = db_session_factory
         self.registry = sensor_registry or {}
         self.alert_engine = alert_engine
+        self.should_emit_sensor_alert = should_emit_sensor_alert or (
+            lambda _sensor_id, _alert_type: True
+        )
         self.last_seen: dict[str, float] = {}
         self.fault_sensors: set[str] = set()
         self.timeout = settings.watchdog_timeout_seconds
@@ -120,6 +124,9 @@ class SensorWatchdog:
         threshold: float | None = None,
     ) -> None:
         terminal = alert_type == "sensor_recovered"
+        if not terminal and not self.should_emit_sensor_alert(sensor_id, alert_type):
+            return
+
         if self.alert_engine and not terminal and sensor_id in self.alert_engine.active_alerts:
             return
 

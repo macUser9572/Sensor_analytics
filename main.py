@@ -46,6 +46,18 @@ for noisy_logger in (
 
 DB_STARTUP_ATTEMPTS = 5
 DB_STARTUP_RETRY_SECONDS = 3
+THRESHOLD_ALERT_TYPES = {"warning_threshold", "critical_threshold"}
+SENSOR_ALERT_TYPES = {"sensor_fault", "sensor_missing", "sensor_uncertain"}
+
+
+def should_keep_demo_alert(simulator, alert: dict) -> bool:
+    sensor_id = alert.get("sensor_id")
+    alert_type = alert.get("alert_type")
+    if alert_type in THRESHOLD_ALERT_TYPES:
+        return sensor_id in simulator.fault_targets
+    if alert_type in SENSOR_ALERT_TYPES:
+        return sensor_id in simulator.killed_sensors
+    return True
 
 
 async def prepare_database_for_storage(sensor_registry) -> None:
@@ -98,6 +110,8 @@ async def lifespan(app: FastAPI):
         app.state.redis_client,
         AsyncSessionLocal,
         sensor_registry,
+        should_emit_threshold_alert=lambda sensor_id: sensor_id in app.state.simulator.fault_targets,
+        should_keep_active_alert=lambda alert: should_keep_demo_alert(app.state.simulator, alert),
     )
     for _attempt in range(3):
         try:
@@ -114,6 +128,9 @@ async def lifespan(app: FastAPI):
         AsyncSessionLocal,
         sensor_registry,
         alert_engine=app.state.alert_engine,
+        should_emit_sensor_alert=lambda sensor_id, _alert_type: (
+            sensor_id in app.state.simulator.killed_sensors
+        ),
     )
     await app.state.watchdog.start()
     app.state.batch_writer = BatchWriter(AsyncSessionLocal)

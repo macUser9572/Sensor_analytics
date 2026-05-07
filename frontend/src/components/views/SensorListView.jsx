@@ -119,8 +119,16 @@ export default function SensorListView({ selectedSensorIds, onSelectionChange, o
 
                     return (
                         <div key={sub} className="mb-2 border border-industrial-border rounded overflow-hidden">
-                            <button
+                            <div
+                                role="button"
+                                tabIndex={0}
                                 onClick={() => toggleGroup(sub)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        toggleGroup(sub);
+                                    }
+                                }}
                                 className="w-full flex items-center justify-between px-4 py-2 bg-industrial-panel text-left hover:bg-white/5"
                             >
                                 <div className="flex items-center space-x-3">
@@ -136,7 +144,7 @@ export default function SensorListView({ selectedSensorIds, onSelectionChange, o
                                     </button>
                                     <span className="text-gray-500">{isCollapsed ? '▼' : '▲'}</span>
                                 </div>
-                            </button>
+                            </div>
 
                             {!isCollapsed && (
                                 <div className="overflow-auto max-h-64">

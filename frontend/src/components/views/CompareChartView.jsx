@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import Plotly from 'plotly.js/dist/plotly';
+import Plotly from 'plotly.js/dist/plotly-cartesian';
 import axios from 'axios';
 import { apiUrl } from '../../config';
 
@@ -111,8 +111,10 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
     // live points accumulated since last full fetch: { id: { x: string[], y: number[] } }
     const livePointsRef  = useRef({});
     const readingsRef    = useRef(sensorReadings || {});
+    const inFlightFetchKeyRef = useRef(null);
+    const requestSeqRef = useRef(0);
 
-    const [minutes,   setMinutes]   = useState(60);
+    const [minutes,   setMinutes]   = useState(15);
     const [loading,   setLoading]   = useState(true);
     const [hasFetched, setHasFetched] = useState(false);
     const [error,     setError]     = useState(null);
@@ -178,8 +180,12 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
     }, []);
 
     // ── Fetch historical data ────────────────────────────────────────────────
-    const fetchData = useCallback(async () => {
+    const fetchData = useCallback(async (options = {}) => {
+        const force = options?.force === true;
+
         if (!selectedSensorIds || selectedSensorIds.length === 0) {
+            requestSeqRef.current += 1;
+            inFlightFetchKeyRef.current = null;
             livePointsRef.current = {};
             lastValuesRef.current = {};
             setTraceData({});
@@ -187,12 +193,19 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
             setLoading(false);
             return;
         }
+        const fetchKey = `${selectedSensorIds.join(',')}|${minutes}`;
+        if (!force && inFlightFetchKeyRef.current === fetchKey) return;
+
+        const requestSeq = requestSeqRef.current + 1;
+        requestSeqRef.current = requestSeq;
+        inFlightFetchKeyRef.current = fetchKey;
         setLoading(true);
         setHasFetched(false);
         setError(null);
         try {
             const ids = encodeURIComponent(selectedSensorIds.join(','));
             const res = await axios.get(apiUrl(`/data/sensors/compare?ids=${ids}&minutes=${minutes}`));
+            if (requestSeq !== requestSeqRef.current) return;
             // Reset live buffers on every fresh fetch so we don't double-count
             livePointsRef.current  = {};
             lastValuesRef.current  = {};
@@ -200,11 +213,17 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
             setTraceData(res.data);
             setHasFetched(true);
         } catch (err) {
+            if (requestSeq !== requestSeqRef.current) return;
             console.error('CompareChartView fetch error', err);
             setError('Failed to fetch comparison data.');
             setHasFetched(true);
         } finally {
-            setLoading(false);
+            if (inFlightFetchKeyRef.current === fetchKey) {
+                inFlightFetchKeyRef.current = null;
+            }
+            if (requestSeq === requestSeqRef.current) {
+                setLoading(false);
+            }
         }
     }, [selectedSensorIds, minutes]);
 
@@ -234,8 +253,9 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
         if (!sensorReadings || selectedSensorIds.length === 0) return;
 
         const cutoff   = Date.now() - minutes * 60 * 1000;
-        // maxPoints caps how many points Plotly keeps per trace (rolling window)
-        const maxPoints = Math.ceil(minutes * 60);
+        // Historical data has one bucket per 15 s; live ticks arrive at ~1 Hz.
+        // Multiply by 10 so Plotly never trims history on the first live tick.
+        const maxPoints = Math.ceil(minutes * 60 * 10);
 
         const traceIndices = [];
         const xUpdates     = [];
@@ -278,8 +298,8 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
                 traceIndices,
                 maxPoints,
             );
-        } catch (_) {
-            // chart may not be ready yet on the very first tick; safe to ignore
+        } catch (err) {
+            console.warn('[CCV] extendTraces failed:', err);
         }
     }, [sensorReadings, selectedSensorIds, minutes]);
 
@@ -317,7 +337,7 @@ export default function CompareChartView({ selectedSensorIds, sensorReadings, on
                     </div>
 
                     <button
-                        onClick={fetchData}
+                        onClick={() => fetchData({ force: true })}
                         disabled={loading}
                         className="px-3 py-1 text-xs border border-industrial-border text-gray-400 hover:text-gray-200 hover:border-accent-cyan rounded transition-colors"
                     >
